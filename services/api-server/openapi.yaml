@@ -1,0 +1,145 @@
+openapi: 3.0.3
+info:
+  title: SMS SMP Negeri API
+  description: Kontrak tunggal web + mobile. Acuan baca: docs/07-api-contract.md
+  version: 1.0.0
+servers:
+  - url: http://localhost:3001/api/v1
+tags:
+  - name: auth
+  - name: master
+  - name: akademik
+security:
+  - bearerAuth: []
+paths:
+  /auth/login:
+    post:
+      tags: [auth]
+      security: []
+      summary: Login semua device
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      accessToken: { type: string }
+                      user: { type: object }
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: Profil + role + mapel diampu
+      responses:
+        '200': { description: OK }
+  /tahun-ajaran:
+    get:
+      tags: [master]
+      summary: List tahun ajaran
+      responses: { '200': { description: OK } }
+  /rombel:
+    get:
+      tags: [master]
+      summary: List rombel (filter tahunAjaranId, tingkatId)
+      parameters:
+        - { name: tahunAjaranId, in: query, schema: { type: string, format: uuid } }
+        - { name: tingkatId, in: query, schema: { type: string, format: uuid } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, default: 30 } }
+      responses: { '200': { description: OK } }
+  /rombel/{id}/siswa:
+    get:
+      tags: [master]
+      summary: Daftar siswa 1 rombel (+ status absensi via ?tanggal=)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: tanggal, in: query, schema: { type: string, format: date } }
+      responses: { '200': { description: OK } }
+  /jadwal-saya:
+    get:
+      tags: [akademik]
+      summary: Jadwal guru login (?hari=SENIN)
+      parameters:
+        - { name: hari, in: query, schema: { type: string, enum: [SENIN, SELASA, RABU, KAMIS, JUMAT, SABTU] } }
+      responses: { '200': { description: OK } }
+  /absensi/bulk:
+    post:
+      tags: [akademik]
+      summary: Simpan absensi 1 kelas 1 mapel (1 request)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tanggal, rombel_id, mapel_id, jam_ke, items]
+              properties:
+                tanggal: { type: string, format: date }
+                rombel_id: { type: string, format: uuid }
+                mapel_id: { type: string, format: uuid }
+                jam_ke: { type: integer }
+                alasan_override: { type: string }
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required: [siswa_id, status]
+                    properties:
+                      siswa_id: { type: string, format: uuid }
+                      status: { type: string, enum: [HADIR, IZIN, SAKIT, ALPA] }
+                      keterangan: { type: string }
+      responses:
+        '201': { description: Tersimpan }
+        '403': { description: Bukan mapel/rombel guru ybs }
+  /absensi/rekap:
+    get:
+      tags: [akademik]
+      summary: Rekap server-side (groupBy siswa/harian)
+      responses: { '200': { description: OK } }
+  /absensi-guru/masuk:
+    post:
+      tags: [akademik]
+      summary: Presensi masuk via wajah
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [face_score, liveness]
+              properties:
+                face_score: { type: number }
+                liveness: { type: boolean }
+                lat: { type: number }
+                lng: { type: number }
+      responses: { '201': { description: Tercatat } }
+  /nilai/bulk:
+    post:
+      tags: [akademik]
+      summary: Input nilai bulk per mapel
+      responses: { '201': { description: Tersimpan } }
+  /dashboard/ringkasan:
+    get:
+      tags: [akademik]
+      summary: Ringkasan kepsek/admin
+      responses: { '200': { description: OK } }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

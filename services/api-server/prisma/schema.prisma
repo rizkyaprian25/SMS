@@ -1,0 +1,395 @@
+// SMS SMP Negeri — skema tunggal. Acuan: docs/02-database-design.md
+// Rombel = (tingkat, tahunAjaran, nama). Seed 7A-7H/8A-8G/9A-9G adalah DATA (seed.ts), bukan enum.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  KEPALA_SEKOLAH
+  GURU_MAPEL
+  WALI_KELAS
+  GURU_BK
+  SISWA
+  ORANG_TUA
+}
+
+enum Semester {
+  GANJIL
+  GENAP
+}
+
+enum Hari {
+  SENIN
+  SELASA
+  RABU
+  KAMIS
+  JUMAT
+  SABTU
+}
+
+enum StatusKehadiran {
+  HADIR
+  IZIN
+  SAKIT
+  ALPA
+}
+
+enum SumberAbsensi {
+  WEB
+  MOBILE
+}
+
+enum MetodePresensi {
+  FACE
+  MANUAL_FALLBACK
+}
+
+enum StatusVerifikasi {
+  TERVERIFIKASI
+  PENDING
+  DITOLAK
+}
+
+enum JenisNilai {
+  TUGAS
+  HARIAN
+  UTS
+  UAS
+  SUMATIF
+}
+
+enum StatusIzin {
+  DIAJUKAN
+  DISETUJUI
+  DITOLAK
+}
+
+enum JenisIzin {
+  IZIN
+  SAKIT
+}
+
+model TahunAjaran {
+  id             String   @id @default(uuid()) @db.Uuid
+  nama           String   @db.VarChar(20) // 2026/2027
+  semesterAktif  Semester @map("semester_aktif")
+  isAktif        Boolean  @default(false) @map("is_aktif")
+  tglMulai       DateTime @map("tgl_mulai") @db.Date
+  tglSelesai     DateTime @map("tgl_selesai") @db.Date
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  rombel  Rombel[]
+  nilai   Nilai[]
+  riwayat RiwayatKelas[]
+
+  @@map("tahun_ajaran")
+}
+
+model Tingkat {
+  id        String   @id @default(uuid()) @db.Uuid
+  nama      String   @unique @db.VarChar(10) // 7,8,9
+  urutan    Int
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  rombel Rombel[]
+
+  @@map("tingkat")
+}
+
+model Rombel {
+  id            String    @id @default(uuid()) @db.Uuid
+  tingkatId     String    @map("tingkat_id") @db.Uuid
+  tahunAjaranId String    @map("tahun_ajaran_id") @db.Uuid
+  nama          String    @db.VarChar(10) // 7A
+  waliKelasId   String?   @map("wali_kelas_id") @db.Uuid
+  kapasitas     Int       @default(32)
+  deletedAt     DateTime? @map("deleted_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  tingkat     Tingkat     @relation(fields: [tingkatId], references: [id])
+  tahunAjaran TahunAjaran @relation(fields: [tahunAjaranId], references: [id])
+  waliKelas   Guru?       @relation("WaliKelas", fields: [waliKelasId], references: [id])
+
+  siswa   Siswa[]
+  jadwal  Jadwal[]
+  riwayatLama RiwayatKelas[] @relation("RombelLama")
+  riwayatBaru RiwayatKelas[] @relation("RombelBaru")
+
+  @@unique([tahunAjaranId, nama])
+  @@map("rombel")
+}
+
+model Guru {
+  id               String    @id @default(uuid()) @db.Uuid
+  nip              String    @unique @db.VarChar(30)
+  nama             String
+  fotoUrl          String?   @map("foto_url")
+  faceEmbeddingEnc String?   @map("face_embedding_enc") @db.Text
+  faceConsent      Boolean   @default(false) @map("face_consent")
+  faceConsentAt    DateTime? @map("face_consent_at")
+  isAktif          Boolean   @default(true) @map("is_aktif")
+  deletedAt        DateTime? @map("deleted_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  pengguna    Pengguna?
+  waliUntuk   Rombel[]      @relation("WaliKelas")
+  mapelDiampu GuruMapel[]
+  jadwal      Jadwal[]
+  absensiBuat Absensi[]     @relation("AbsensiOleh")
+  presensi    AbsensiGuru[]
+  izinProses  Perizinan[]   @relation("IzinOleh")
+  catatLanggar Pelanggaran[] @relation("LanggarOleh")
+  riwayatProses RiwayatKelas[] @relation("RiwayatOleh")
+
+  @@map("guru")
+}
+
+model Pengguna {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         Role
+  guruId       String?  @unique @map("guru_id") @db.Uuid
+  siswaId      String?  @unique @map("siswa_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  guru  Guru?  @relation(fields: [guruId], references: [id])
+  siswa Siswa? @relation(fields: [siswaId], references: [id])
+
+  @@map("pengguna")
+}
+
+model Siswa {
+  id         String    @id @default(uuid()) @db.Uuid
+  nisn       String    @unique @db.Char(10)
+  nama       String
+  rombelId   String?   @map("rombel_id") @db.Uuid
+  jenisKelamin String? @map("jenis_kelamin") @db.VarChar(20)
+  tglLahir   DateTime? @map("tgl_lahir") @db.Date
+  fotoUrl    String?   @map("foto_url")
+  dataOrtu   Json?     @map("data_ortu")
+  isAktif    Boolean   @default(true) @map("is_aktif")
+  deletedAt  DateTime? @map("deleted_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  rombel    Rombel?     @relation(fields: [rombelId], references: [id])
+  pengguna  Pengguna?
+  absensi   Absensi[]
+  nilai     Nilai[]
+  izin      Perizinan[]
+  langgar   Pelanggaran[]
+  riwayat   RiwayatKelas[]
+
+  @@map("siswa")
+}
+
+model Mapel {
+  id        String   @id @default(uuid()) @db.Uuid
+  kode      String   @unique @db.VarChar(20)
+  nama      String
+  kelompok  String?  @db.VarChar(50)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  diampu  GuruMapel[]
+  jadwal  Jadwal[]
+  absensi Absensi[]
+  nilai   Nilai[]
+
+  @@map("mapel")
+}
+
+model GuruMapel {
+  guruId  String @map("guru_id") @db.Uuid
+  mapelId String @map("mapel_id") @db.Uuid
+
+  guru  Guru  @relation(fields: [guruId], references: [id], onDelete: Cascade)
+  mapel Mapel @relation(fields: [mapelId], references: [id], onDelete: Cascade)
+
+  @@id([guruId, mapelId])
+  @@map("guru_mapel")
+}
+
+model Jadwal {
+  id         String   @id @default(uuid()) @db.Uuid
+  rombelId   String   @map("rombel_id") @db.Uuid
+  mapelId    String   @map("mapel_id") @db.Uuid
+  guruId     String   @map("guru_id") @db.Uuid
+  hari       Hari
+  jamMulai   DateTime @map("jam_mulai") @db.Time
+  jamSelesai DateTime @map("jam_selesai") @db.Time
+  jamKe      Int      @map("jam_ke")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  rombel Rombel @relation(fields: [rombelId], references: [id])
+  mapel  Mapel  @relation(fields: [mapelId], references: [id])
+  guru   Guru   @relation(fields: [guruId], references: [id])
+
+  @@unique([rombelId, hari, jamMulai])
+  @@map("jadwal")
+}
+
+model Absensi {
+  id          String          @id @default(uuid()) @db.Uuid
+  siswaId     String          @map("siswa_id") @db.Uuid
+  tanggal     DateTime        @db.Date
+  mapelId     String          @map("mapel_id") @db.Uuid
+  jamKe       Int             @map("jam_ke")
+  status      StatusKehadiran
+  keterangan  String?
+  dicatatOleh String          @map("dicatat_oleh") @db.Uuid
+  sumber      SumberAbsensi   @default(MOBILE)
+  alasanOverride String?      @map("alasan_override")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  siswa   Siswa @relation(fields: [siswaId], references: [id])
+  mapel   Mapel @relation(fields: [mapelId], references: [id])
+  pencatat Guru @relation("AbsensiOleh", fields: [dicatatOleh], references: [id])
+
+  @@unique([siswaId, tanggal, mapelId, jamKe])
+  @@map("absensi")
+}
+
+model AbsensiGuru {
+  id               String           @id @default(uuid()) @db.Uuid
+  guruId           String           @map("guru_id") @db.Uuid
+  tanggal          DateTime         @db.Date
+  jamMasuk         DateTime?        @map("jam_masuk")
+  jamPulang        DateTime?        @map("jam_pulang")
+  metode           MetodePresensi
+  statusVerifikasi StatusVerifikasi @default(TERVERIFIKASI) @map("status_verifikasi")
+  lat              Float?
+  lng              Float?
+  diLuarArea       Boolean          @default(false) @map("di_luar_area")
+  faceScore        Float?           @map("face_score")
+  alasan           String?
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  guru Guru @relation(fields: [guruId], references: [id])
+
+  @@unique([guruId, tanggal])
+  @@map("absensi_guru")
+}
+
+model Nilai {
+  id            String     @id @default(uuid()) @db.Uuid
+  siswaId       String     @map("siswa_id") @db.Uuid
+  mapelId       String     @map("mapel_id") @db.Uuid
+  tahunAjaranId String     @map("tahun_ajaran_id") @db.Uuid
+  semester      Semester
+  jenis         JenisNilai
+  nilai         Decimal    @db.Decimal(5, 2)
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  siswa       Siswa       @relation(fields: [siswaId], references: [id])
+  mapel       Mapel       @relation(fields: [mapelId], references: [id])
+  tahunAjaran TahunAjaran @relation(fields: [tahunAjaranId], references: [id])
+
+  @@map("nilai")
+}
+
+model Perizinan {
+  id          String     @id @default(uuid()) @db.Uuid
+  siswaId     String     @map("siswa_id") @db.Uuid
+  tglMulai    DateTime   @map("tgl_mulai") @db.Date
+  tglSelesai  DateTime   @map("tgl_selesai") @db.Date
+  jenis       JenisIzin
+  alasan      String
+  lampiranUrl String?    @map("lampiran_url")
+  status      StatusIzin @default(DIAJUKAN)
+  diprosesOleh String?   @map("diproses_oleh") @db.Uuid
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  siswa     Siswa @relation(fields: [siswaId], references: [id])
+  pemroses  Guru? @relation("IzinOleh", fields: [diprosesOleh], references: [id])
+
+  @@map("perizinan")
+}
+
+model Pengumuman {
+  id              String    @id @default(uuid()) @db.Uuid
+  judul           String
+  isi             String    @db.Text
+  targetRole      String[]  @map("target_role")
+  targetRombelId  String?   @map("target_rombel_id") @db.Uuid
+  diterbitkanPada DateTime  @default(now()) @map("diterbitkan_pada")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@map("pengumuman")
+}
+
+model Pelanggaran {
+  id          String   @id @default(uuid()) @db.Uuid
+  siswaId     String   @map("siswa_id") @db.Uuid
+  tanggal     DateTime @db.Date
+  kategori    String
+  poin        Int
+  keterangan  String?  @db.Text
+  dicatatOleh String   @map("dicatat_oleh") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  siswa    Siswa @relation(fields: [siswaId], references: [id])
+  pencatat Guru  @relation("LanggarOleh", fields: [dicatatOleh], references: [id])
+
+  @@map("pelanggaran")
+}
+
+model RiwayatKelas {
+  id            String   @id @default(uuid()) @db.Uuid
+  siswaId       String   @map("siswa_id") @db.Uuid
+  rombelLamaId  String?  @map("rombel_lama_id") @db.Uuid
+  rombelBaruId  String   @map("rombel_baru_id") @db.Uuid
+  tahunAjaranId String   @map("tahun_ajaran_id") @db.Uuid
+  tanggal       DateTime @default(now()) @db.Date
+  diprosesOleh  String   @map("diproses_oleh") @db.Uuid
+
+  siswa       Siswa       @relation(fields: [siswaId], references: [id])
+  rombelLama  Rombel?     @relation("RombelLama", fields: [rombelLamaId], references: [id])
+  rombelBaru  Rombel      @relation("RombelBaru", fields: [rombelBaruId], references: [id])
+  tahunAjaran TahunAjaran @relation(fields: [tahunAjaranId], references: [id])
+  pemroses    Guru        @relation("RiwayatOleh", fields: [diprosesOleh], references: [id])
+
+  @@map("riwayat_kelas")
+}
+
+model AuditLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  aksi         String
+  entitas      String
+  entitasId    String   @map("entitas_id") @db.Uuid
+  sebelum      Json?
+  sesudah      Json?
+  dilakukanOleh String  @map("dilakukan_oleh") @db.Uuid
+  kapan        DateTime @default(now())
+
+  @@map("audit_log")
+}
+
+model Perangkat {
+  id        String   @id @default(uuid()) @db.Uuid
+  penggunaId String  @map("pengguna_id") @db.Uuid
+  fcmToken  String   @map("fcm_token")
+  platform  String   @db.VarChar(20) // ANDROID, IOS, WEB
+  lastLogin DateTime @default(now()) @map("last_login")
+
+  @@unique([penggunaId, fcmToken])
+  @@map("perangkat")
+}

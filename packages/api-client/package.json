@@ -1,0 +1,9 @@
+{
+  "name": "@sms/api-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Generated client dari services/api-server/openapi.yaml. JANGAN EDIT MANUAL.",
+  "scripts": {
+    "generate": "echo \"TODO: openapi-generator-cli generate -i ../../services/api-server/openapi.yaml -g typescript-axios -o ./ts && ... dart-dio -o ./dart\""
+  }
+}
