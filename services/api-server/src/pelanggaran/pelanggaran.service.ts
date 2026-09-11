@@ -1,8 +1,8 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { pageMeta, pageParams } from '../common/pagination';
 import type { JwtPayload } from '../common/decorators/current-user.decorator';
-import { CreatePelanggaranDto, QueryPelanggaranDto } from './dto/pelanggaran.dto';
+import { CreatePelanggaranDto, QueryPelanggaranDto, UpdatePelanggaranDto } from './dto/pelanggaran.dto';
 
 /**
  * Buku kasus/BK — akses TERBATAS: ADMIN + GURU_BK semua, WALI hanya kelas
@@ -92,5 +92,33 @@ export class PelanggaranService {
       _count: { poin: true },
     });
     return { data: { siswaId, totalPoin: agg._sum.poin ?? 0, jumlahKasus: agg._count.poin } };
+  }
+
+  async update(user: JwtPayload, id: string, dto: UpdatePelanggaranDto) {
+    const lama = await this.prisma.pelanggaran.findUnique({ where: { id } });
+    if (!lama) throw new NotFoundException('Catatan pelanggaran tidak ditemukan');
+    const allowed = await this.binaan(user);
+    await this.pastikanSiswaDalamScope(lama.siswaId, allowed);
+
+    const row = await this.prisma.pelanggaran.update({
+      where: { id },
+      data: {
+        tanggal: dto.tanggal ? new Date(`${dto.tanggal}T00:00:00.000Z`) : undefined,
+        kategori: dto.kategori,
+        poin: dto.poin,
+        keterangan: dto.keterangan,
+      },
+    });
+    return { data: row };
+  }
+
+  async remove(user: JwtPayload, id: string) {
+    const lama = await this.prisma.pelanggaran.findUnique({ where: { id } });
+    if (!lama) throw new NotFoundException('Catatan pelanggaran tidak ditemukan');
+    const allowed = await this.binaan(user);
+    await this.pastikanSiswaDalamScope(lama.siswaId, allowed);
+
+    await this.prisma.pelanggaran.delete({ where: { id } });
+    return { data: { id } };
   }
 }

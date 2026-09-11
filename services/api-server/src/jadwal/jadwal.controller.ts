@@ -1,6 +1,7 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JadwalService } from './jadwal.service';
 import { CreateJadwalDto } from './dto/create-jadwal.dto';
+import { UpdateJadwalDto } from './dto/update-jadwal.dto';
 import { QueryJadwalDto } from './dto/query-jadwal.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -27,6 +28,12 @@ export class JadwalController {
   @Post('jadwal')
   create(@Body() dto: CreateJadwalDto) {
     return this.jadwal.create(dto);
+  }
+
+  @Roles('SUPER_ADMIN')
+  @Patch('jadwal/:id')
+  update(@Param('id') id: string, @Body() dto: UpdateJadwalDto) {
+    return this.jadwal.update(id, dto);
   }
 
   @Roles('SUPER_ADMIN')

@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { PelanggaranService } from './pelanggaran.service';
-import { CreatePelanggaranDto, QueryPelanggaranDto } from './dto/pelanggaran.dto';
+import { CreatePelanggaranDto, QueryPelanggaranDto, UpdatePelanggaranDto } from './dto/pelanggaran.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -25,5 +25,19 @@ export class PelanggaranController {
   @Get('total')
   total(@CurrentUser() user: JwtPayload, @Query('siswaId') siswaId: string) {
     return this.bk.total(user, siswaId);
+  }
+
+  @Patch(':id')
+  update(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdatePelanggaranDto,
+  ) {
+    return this.bk.update(user, id, dto);
+  }
+
+  @Delete(':id')
+  remove(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.bk.remove(user, id);
   }
 }

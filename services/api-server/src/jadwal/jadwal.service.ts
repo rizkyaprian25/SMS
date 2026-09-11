@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { pageMeta, pageParams } from '../common/pagination';
 import { CreateJadwalDto } from './dto/create-jadwal.dto';
+import { UpdateJadwalDto } from './dto/update-jadwal.dto';
 import { QueryJadwalDto } from './dto/query-jadwal.dto';
 
 /**
@@ -107,6 +108,40 @@ export class JadwalService {
         jamMulai: mulai,
         jamSelesai: selesai,
         jamKe: dto.jamKe ?? 1,
+      },
+    });
+    return { data: row };
+  }
+
+  async update(id: string, dto: UpdateJadwalDto) {
+    const lama = await this.prisma.jadwal.findUnique({ where: { id } });
+    if (!lama) throw new NotFoundException('Jadwal tidak ditemukan');
+
+    const jamMulaiStr = dto.jamMulai ?? lama.jamMulai.toISOString().slice(11, 16);
+    const jamSelesaiStr = dto.jamSelesai ?? lama.jamSelesai.toISOString().slice(11, 16);
+
+    const merged = {
+      rombelId: dto.rombelId ?? lama.rombelId,
+      mapelId: dto.mapelId ?? lama.mapelId,
+      guruId: dto.guruId ?? lama.guruId,
+      hari: dto.hari ?? lama.hari,
+      jamMulai: jamMulaiStr,
+      jamSelesai: jamSelesaiStr,
+      jamKe: dto.jamKe ?? lama.jamKe,
+    };
+
+    const { mulai, selesai } = await this.pastikanTidakBentrok(merged, id);
+
+    const row = await this.prisma.jadwal.update({
+      where: { id },
+      data: {
+        rombelId: merged.rombelId,
+        mapelId: merged.mapelId,
+        guruId: merged.guruId,
+        hari: merged.hari,
+        jamMulai: mulai,
+        jamSelesai: selesai,
+        jamKe: merged.jamKe,
       },
     });
     return { data: row };

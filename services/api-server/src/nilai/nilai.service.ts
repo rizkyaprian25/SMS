@@ -1,9 +1,10 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { pageMeta, pageParams } from '../common/pagination';
 import { assertDapatInputMapel } from '../common/access';
 import type { JwtPayload } from '../common/decorators/current-user.decorator';
 import { NilaiBulkDto } from './dto/nilai-bulk.dto';
+import { UpdateNilaiDto } from './dto/update-nilai.dto';
 import { QueryNilaiDto } from './dto/query-nilai.dto';
 
 /** Input nilai cepat per kelas+mapel (mobile) — 1 request bulk, retry aman. */
@@ -80,5 +81,24 @@ export class NilaiService {
       this.prisma.nilai.count({ where }),
     ]);
     return { data: rows, meta: pageMeta(total, page, limit) };
+  }
+
+  async update(id: string, user: JwtPayload, dto: UpdateNilaiDto) {
+    const lama = await this.prisma.nilai.findUnique({ where: { id } });
+    if (!lama) throw new NotFoundException('Data nilai tidak ditemukan');
+
+    await assertDapatInputMapel(this.prisma, {
+      role: user.role,
+      guruId: user.guruId,
+      mapelId: lama.mapelId,
+    });
+
+    const row = await this.prisma.nilai.update({
+      where: { id },
+      data: {
+        nilai: dto.nilai,
+      },
+    });
+    return { data: row };
   }
 }

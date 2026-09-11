@@ -29,3 +29,23 @@ export class QueryPelanggaranDto extends PaginationQueryDto {
   @IsUUID()
   rombelId?: string;
 }
+
+export class UpdatePelanggaranDto {
+  @IsOptional()
+  @IsDateString()
+  tanggal?: string;
+
+  @IsOptional()
+  @IsString()
+  kategori?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  poin?: number;
+
+  @IsOptional()
+  @IsString()
+  keterangan?: string;
+}
+

@@ -98,6 +98,10 @@ export class GuruService {
   async update(id: string, dto: UpdateGuruDto) {
     const lama = await this.prisma.guru.findUnique({ where: { id } });
     if (!lama || lama.deletedAt) throw new NotFoundException('Guru tidak ditemukan');
+    if (dto.nip && dto.nip !== lama.nip) {
+      const ada = await this.prisma.guru.findUnique({ where: { nip: dto.nip } });
+      if (ada) throw new ConflictException('NIP sudah terdaftar');
+    }
     const row = await this.prisma.guru.update({ where: { id }, data: dto });
     return { data: row };
   }

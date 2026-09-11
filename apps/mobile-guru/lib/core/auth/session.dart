@@ -11,11 +11,19 @@ const _kAccess = 'sms_access_token';
 /// Status login global. Dipakai guard implisit: layar mengarah ke /login
 /// bila [SessionData.token] null.
 class SessionData {
-  const SessionData({this.token, this.email, this.role});
+  const SessionData({
+    this.token,
+    this.email,
+    this.role,
+    this.guruNama,
+    this.guruNip,
+  });
 
   final String? token;
   final String? email;
   final String? role;
+  final String? guruNama;
+  final String? guruNip;
 
   bool get sudahMasuk => token != null;
 }
@@ -41,12 +49,16 @@ class SessionNotifier extends AsyncNotifier<SessionData> {
     state = const AsyncLoading();
     try {
       final me = await api.get('/auth/me');
-      final data = me.data as Map<String, dynamic>;
+      final raw = me.data as Map<String, dynamic>;
+      final med = (raw['data'] as Map<String, dynamic>?) ?? raw;
+      final guru = med['guru'] as Map<String, dynamic>?;
       state = AsyncData(
         SessionData(
           token: token,
-          email: data['email'] as String?,
-          role: data['role'] as String?,
+          email: med['email'] as String?,
+          role: med['role'] as String?,
+          guruNama: guru?['nama'] as String?,
+          guruNip: guru?['nip'] as String?,
         ),
       );
     } catch (_) {
@@ -71,11 +83,15 @@ class SessionNotifier extends AsyncNotifier<SessionData> {
       api.setToken(token);
       await _daftarkanFcm(api);
       final me = await api.get('/auth/me');
-      final med = me.data as Map<String, dynamic>;
+      final raw = me.data as Map<String, dynamic>;
+      final med = (raw['data'] as Map<String, dynamic>?) ?? raw;
+      final guru = med['guru'] as Map<String, dynamic>?;
       return SessionData(
         token: token,
         email: med['email'] as String?,
         role: med['role'] as String?,
+        guruNama: guru?['nama'] as String?,
+        guruNip: guru?['nip'] as String?,
       );
     });
   }

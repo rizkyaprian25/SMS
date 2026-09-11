@@ -66,6 +66,7 @@ export class SiswaService {
         // NISN dimask di list (lihat docs/02): kembalikan 4 digit terakhir saja.
         select: {
           id: true,
+          nisn: true,
           nama: true,
           rombelId: true,
           jenisKelamin: true,

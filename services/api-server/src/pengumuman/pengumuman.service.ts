@@ -52,6 +52,16 @@ export class PengumumanService {
     return { data: row };
   }
 
+  async update(id: string, dto: Partial<CreatePengumumanDto>) {
+    const lama = await this.prisma.pengumuman.findUnique({ where: { id } });
+    if (!lama) throw new NotFoundException('Pengumuman tidak ditemukan');
+    const row = await this.prisma.pengumuman.update({
+      where: { id },
+      data: dto,
+    });
+    return { data: row };
+  }
+
   async remove(id: string) {
     const lama = await this.prisma.pengumuman.findUnique({ where: { id } });
     if (!lama) throw new NotFoundException('Pengumuman tidak ditemukan');

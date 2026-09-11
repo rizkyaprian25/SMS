@@ -69,8 +69,21 @@ async function main() {
     create: { email: 'admin@sekolah.sch.id', passwordHash: hash, role: 'SUPER_ADMIN', guruId: guru.id },
   });
 
+  // Guru seed (untuk Mobile Guru)
+  const guruHash = await bcrypt.hash('Guru123!', 12);
+  const guruBudi = await prisma.guru.upsert({
+    where: { nip: '198203112006041008' },
+    update: {},
+    create: { nip: '198203112006041008', nama: 'Budi Santoso, S.Pd' },
+  });
+  await prisma.pengguna.upsert({
+    where: { email: 'guru@sekolah.sch.id' },
+    update: {},
+    create: { email: 'guru@sekolah.sch.id', passwordHash: guruHash, role: 'GURU_MAPEL', guruId: guruBudi.id },
+  });
+
   // eslint-disable-next-line no-console
-  console.log('Seed OK: TA 2026/2027, 22 rombel, 11 mapel, admin@sekolah.sch.id / Admin123!');
+  console.log('Seed OK: TA 2026/2027, 22 rombel, 11 mapel, admin@sekolah.sch.id / Admin123!, guru@sekolah.sch.id / Guru123!');
 }
 
 main()

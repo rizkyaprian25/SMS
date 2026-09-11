@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { PengumumanService } from './pengumuman.service';
 import { CreatePengumumanDto, QueryPengumumanDto } from './dto/pengumuman.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -19,6 +19,12 @@ export class PengumumanController {
   @Post()
   create(@Body() dto: CreatePengumumanDto) {
     return this.info.create(dto);
+  }
+
+  @Roles('SUPER_ADMIN')
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: Partial<CreatePengumumanDto>) {
+    return this.info.update(id, dto);
   }
 
   @Roles('SUPER_ADMIN')

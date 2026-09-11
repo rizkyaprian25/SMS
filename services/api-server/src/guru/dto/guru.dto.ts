@@ -29,6 +29,10 @@ export class CreateGuruDto {
 export class UpdateGuruDto {
   @IsOptional()
   @IsString()
+  nip?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(100)
   nama?: string;
 
