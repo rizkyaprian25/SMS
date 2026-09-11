@@ -1,12 +1,20 @@
 'use client';
-import React, { useState } from 'react';
-import { usePathname } from 'next/navigation';
+import React, { useState, useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { SidebarNav, Topbar } from './sidebar-nav';
+import { getAccessToken } from '@/lib/api';
 
 export function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const isLoginPage = pathname === '/login';
+
+  useEffect(() => {
+    if (!isLoginPage && !getAccessToken()) {
+      router.push('/login');
+    }
+  }, [isLoginPage, pathname, router]);
 
   if (isLoginPage) {
     return <>{children}</>;

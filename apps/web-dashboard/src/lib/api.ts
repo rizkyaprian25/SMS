@@ -5,13 +5,44 @@ export const api = axios.create({
   withCredentials: true,
 });
 
+const TOKEN_KEY = 'sms_access_token';
+
 let accessToken: string | null = null;
+
+export function getAccessToken(): string | null {
+  if (accessToken) return accessToken;
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem(TOKEN_KEY);
+      if (stored) {
+        accessToken = stored;
+        return stored;
+      }
+    } catch {
+      // Abaikan jika localStorage tidak dapat diakses
+    }
+  }
+  return null;
+}
+
 export function setAccessToken(t: string | null) {
   accessToken = t;
+  if (typeof window !== 'undefined') {
+    try {
+      if (t) {
+        localStorage.setItem(TOKEN_KEY, t);
+      } else {
+        localStorage.removeItem(TOKEN_KEY);
+      }
+    } catch {
+      // Abaikan jika localStorage tidak dapat diakses
+    }
+  }
 }
 
 api.interceptors.request.use((cfg) => {
-  if (accessToken) cfg.headers.Authorization = `Bearer ${accessToken}`;
+  const token = getAccessToken();
+  if (token) cfg.headers.Authorization = `Bearer ${token}`;
   return cfg;
 });
 

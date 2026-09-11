@@ -9,7 +9,7 @@ export class DashboardService {
 
   async ringkasan() {
     const hariIni = hariIniUTC();
-    const [totalSiswa, totalGuru, totalRombel, hadirHariIni, tidakHadirHariIni] =
+    const [totalSiswa, totalGuru, totalRombel, hadirHariIni, tidakHadirHariIni, alpaHariIni] =
       await Promise.all([
         this.prisma.siswa.count({ where: { isAktif: true, deletedAt: null } }),
         this.prisma.guru.count({ where: { isAktif: true, deletedAt: null } }),
@@ -18,9 +18,18 @@ export class DashboardService {
         this.prisma.absensi.count({
           where: { tanggal: hariIni, status: { in: ['IZIN', 'SAKIT', 'ALPA'] } },
         }),
+        this.prisma.absensi.count({ where: { tanggal: hariIni, status: 'ALPA' } }),
       ]);
     return {
-      data: { totalSiswa, totalGuru, totalRombel, hadirHariIni, tidakHadirHariIni, tanggal: hariIni },
+      data: {
+        totalSiswa,
+        totalGuru,
+        totalRombel,
+        hadirHariIni,
+        tidakHadirHariIni,
+        alpaHariIni,
+        tanggal: hariIni,
+      },
     };
   }
 }

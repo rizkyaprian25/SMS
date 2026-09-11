@@ -24,8 +24,12 @@ export default function LoginPage() {
         window.location.href = '/';
       }, 500);
     } catch (err: unknown) {
-      const errObj = err as { response?: { data?: { message?: string } } };
-      setErrorMsg(errObj.response?.data?.message || 'Login gagal. Periksa kembali email dan password.');
+      const errObj = err as { response?: { data?: { message?: string } }; code?: string; message?: string };
+      if (errObj.code === 'ERR_NETWORK' || !errObj.response) {
+        setErrorMsg('Tidak dapat terhubung ke server API (port 3001). Pastikan backend NestJS sudah aktif.');
+      } else {
+        setErrorMsg(errObj.response?.data?.message || 'Login gagal. Periksa kembali email dan password.');
+      }
     } finally {
       setLoading(false);
     }

@@ -5,7 +5,13 @@ function mockPrisma() {
     siswa: { count: jest.fn().mockResolvedValue(1000) },
     guru: { count: jest.fn().mockResolvedValue(60) },
     rombel: { count: jest.fn().mockResolvedValue(22) },
-    absensi: { count: jest.fn().mockResolvedValueOnce(900).mockResolvedValueOnce(100) },
+    absensi: {
+      count: jest
+        .fn()
+        .mockResolvedValueOnce(900)
+        .mockResolvedValueOnce(100)
+        .mockResolvedValueOnce(10),
+    },
   };
 }
 
@@ -19,6 +25,7 @@ describe('DashboardService', () => {
       totalRombel: 22,
       hadirHariIni: 900,
       tidakHadirHariIni: 100,
+      alpaHariIni: 10,
     });
   });
 });

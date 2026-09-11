@@ -1,9 +1,10 @@
 'use client';
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { StatCard } from '@/components/ui/stat-card';
+import { useToast } from '@/components/ui/toast';
 
 interface RingkasanData {
   totalSiswa: number;
@@ -14,11 +15,43 @@ interface RingkasanData {
 }
 
 export default function DashboardPage() {
-  const { data, isPending, isError, refetch } = useQuery<{ data: RingkasanData }>({
+  const { toast } = useToast();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  const { data, isPending, isError, error, refetch, isFetching } = useQuery<{ data: RingkasanData }>({
     queryKey: ['ringkasan'],
-    queryFn: async () => (await api.get('/dashboard/ringkasan')).data,
+    queryFn: async () => {
+      const res = await api.get('/dashboard/ringkasan');
+      setLastUpdated(new Date());
+      return res.data;
+    },
     retry: false,
   });
+
+  async function handleSegarkan() {
+    setIsRefreshing(true);
+    try {
+      const res = await refetch();
+      if (res.isError) {
+        const status = (res.error as unknown as { response?: { status?: number } })?.response?.status;
+        if (status === 401) {
+          toast('Sesi belum masuk atau telah kedaluwarsa. Silakan login.', 'danger');
+        } else {
+          toast('Gagal terhubung ke server API di port 3001', 'danger');
+        }
+      } else {
+        setLastUpdated(new Date());
+        toast('Data ringkasan sekolah berhasil diperbarui!', 'success');
+      }
+    } catch {
+      toast('Terjadi kendala saat menyegarkan data', 'danger');
+    } finally {
+      setTimeout(() => {
+        setIsRefreshing(false);
+      }, 500);
+    }
+  }
 
   const ringkasan = data?.data ?? {
     totalSiswa: 0,
@@ -30,6 +63,7 @@ export default function DashboardPage() {
 
   const totalCatat = ringkasan.hadirHariIni + ringkasan.alpaHariIni;
   const persenHadir = totalCatat > 0 ? Math.round((ringkasan.hadirHariIni / totalCatat) * 100) : 100;
+  const loadingState = isRefreshing || isFetching;
 
   return (
     <div>
@@ -37,22 +71,41 @@ export default function DashboardPage() {
       <div className="page-header">
         <div>
           <h1>Ringkasan Eksekutif Sekolah</h1>
-          <p>Pantauan operasional kesiswaan, rombel belajar, dan rekapitulasi presensi harian SMP Negeri.</p>
+          <p>
+            Pantauan operasional kesiswaan, rombel belajar, dan rekapitulasi presensi harian SMP Negeri.
+            {lastUpdated && (
+              <span style={{ display: 'inline-block', marginLeft: 8, fontSize: 12, color: 'var(--text-muted)' }}>
+                &bull; Sinkronisasi:{' '}
+                <strong style={{ color: 'var(--text-main)' }}>
+                  {lastUpdated.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} WIB
+                </strong>
+              </span>
+            )}
+          </p>
         </div>
         <div className="page-header-actions">
           <button
             type="button"
             className="btn btn-secondary btn-sm"
-            onClick={() => refetch()}
+            onClick={handleSegarkan}
+            disabled={loadingState}
             title="Perbarui angka terbaru dari server"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className={loadingState ? 'spin' : ''}
+            >
               <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
               <path d="M3 3v5h5" />
               <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
               <path d="M16 21h5v-5" />
             </svg>
-            <span>Segarkan Data</span>
+            <span>{loadingState ? 'Menyegarkan…' : 'Segarkan Data'}</span>
           </button>
           <Link href="/absensi-siswa" className="btn btn-primary btn-sm">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -72,11 +125,25 @@ export default function DashboardPage() {
             <line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
           <div style={{ flex: 1 }}>
-            <strong>Server Backend Belum Terhubung:</strong> Menggunakan data cache lokal. Pastikan server API aktif di port 3001.
+            {(error as unknown as { response?: { status?: number } })?.response?.status === 401 ? (
+              <>
+                <strong>Sesi Belum Masuk:</strong> Anda belum masuk ke sistem. Silakan login terlebih dahulu untuk memuat data ringkasan sekolah.
+              </>
+            ) : (
+              <>
+                <strong>Server Backend Belum Terhubung:</strong> Tidak dapat menghubungi API di port 3001. Pastikan server backend sudah berjalan (<code style={{ background: 'rgba(0,0,0,0.06)', padding: '2px 6px', borderRadius: 4 }}>npm run start:dev</code>).
+              </>
+            )}
           </div>
-          <button type="button" className="btn btn-sm btn-secondary" onClick={() => refetch()}>
-            Coba Lagi
-          </button>
+          {(error as unknown as { response?: { status?: number } })?.response?.status === 401 ? (
+            <Link href="/login" className="btn btn-sm btn-primary">
+              Masuk Sekarang
+            </Link>
+          ) : (
+            <button type="button" className="btn btn-sm btn-secondary" onClick={() => refetch()}>
+              Coba Lagi
+            </button>
+          )}
         </div>
       )}
 
