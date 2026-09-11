@@ -5,6 +5,7 @@ import { QueryRaporDto } from './dto/query-rapor.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser, type JwtPayload } from '../common/decorators/current-user.decorator';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('SUPER_ADMIN', 'KEPALA_SEKOLAH', 'WALI_KELAS')
@@ -13,13 +14,13 @@ export class RaporController {
   constructor(private readonly rapor: RaporService) {}
 
   @Get(':siswaId')
-  rekap(@Param('siswaId') siswaId: string, @Query() q: QueryRaporDto) {
-    return this.rapor.rekap(siswaId, q);
+  rekap(@Param('siswaId') siswaId: string, @Query() q: QueryRaporDto, @CurrentUser() user: JwtPayload) {
+    return this.rapor.rekap(siswaId, q, user);
   }
 
   @Get(':siswaId.pdf')
-  async unduh(@Param('siswaId') siswaId: string, @Query() q: QueryRaporDto, @Res() res: Response) {
-    const { namaFile, buffer } = await this.rapor.pdf(siswaId, q);
+  async unduh(@Param('siswaId') siswaId: string, @Query() q: QueryRaporDto, @CurrentUser() user: JwtPayload, @Res() res: Response) {
+    const { namaFile, buffer } = await this.rapor.pdf(siswaId, q, user);
     res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${namaFile}"` });
     res.send(buffer);
   }

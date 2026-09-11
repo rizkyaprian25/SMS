@@ -35,8 +35,13 @@ export class AuthService {
     return createHash('sha256').update(token).digest('hex');
   }
 
-  private async tokenPasangan(user: { id: string; role: string; guruId: string | null }) {
-    const payload = { sub: user.id, role: user.role, guruId: user.guruId ?? undefined };
+  private async tokenPasangan(user: { id: string; role: string; guruId: string | null; siswaId?: string | null }) {
+    const payload = {
+      sub: user.id,
+      role: user.role,
+      guruId: user.guruId ?? undefined,
+      siswaId: user.siswaId ?? undefined,
+    };
     const accessToken = await this.jwt.signAsync(payload, {
       secret: this.aksesSecret(),
       expiresIn: AKSES_TTL,
@@ -58,7 +63,7 @@ export class AuthService {
   async login(dto: LoginDto) {
     const user = await this.prisma.pengguna.findUnique({
       where: { email: dto.email },
-      include: { guru: true },
+      include: { guru: true, siswa: true },
     });
     if (!user) throw new UnauthorizedException('Email / password salah');
     const ok = await bcrypt.compare(dto.password, user.passwordHash);
@@ -67,7 +72,7 @@ export class AuthService {
     return {
       data: {
         accessToken,
-        user: { id: user.id, email: user.email, role: user.role, guru: user.guru },
+        user: { id: user.id, email: user.email, role: user.role, guru: user.guru, siswa: user.siswa },
       },
       refreshToken,
     };

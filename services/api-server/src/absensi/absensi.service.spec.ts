@@ -23,9 +23,10 @@ function txMock(ada: unknown = null) {
   };
 }
 
-function mockPrisma(tx: unknown = txMock(), mengampu = true) {
+function mockPrisma(tx: unknown = txMock(), mengampu = true, jadwalCocok = 1) {
   return {
     guruMapel: { findUnique: jest.fn().mockResolvedValue(mengampu ? {} : null) },
+    jadwal: { count: jest.fn().mockResolvedValue(jadwalCocok) },
     siswa: { count: jest.fn().mockResolvedValue(1) },
     absensi: {
       findUnique: jest.fn().mockResolvedValue(null),
@@ -81,6 +82,34 @@ describe('AbsensiService', () => {
     await expect(
       svc.update('x', guru, { status: StatusKehadiran.SAKIT }),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('bulk di luar jadwal tanpa override ditolak (403), dengan override lolos', async () => {
+    const svcLuar = new AbsensiService(mockPrisma(txMock(), true, 0) as never);
+    await expect(svcLuar.createBulk(guru, baseDto)).rejects.toBeInstanceOf(ForbiddenException);
+    const svcGanti = new AbsensiService(mockPrisma(txMock(), true, 0) as never);
+    const res = await svcGanti.createBulk(guru, { ...baseDto, alasanOverride: 'Jam pengganti' });
+    expect(res.data).toMatchObject({ tersimpan: 1 });
+  });
+
+  it('update oleh bukan pencatat ditolak (403)', async () => {
+    const hariIni = new Date().toISOString().slice(0, 10);
+    const prisma = {
+      ...mockPrisma(),
+      absensi: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'a1',
+          tanggal: new Date(`${hariIni}T00:00:00.000Z`),
+          status: 'HADIR',
+          dicatatOleh: 'guru-lain',
+        }),
+        update: jest.fn(),
+      },
+    };
+    const svc = new AbsensiService(prisma as never);
+    await expect(
+      svc.update('a1', guru, { status: StatusKehadiran.SAKIT }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('update H+1 ditolak untuk guru (403), boleh untuk admin', async () => {

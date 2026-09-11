@@ -122,6 +122,7 @@ model Rombel {
 
   siswa   Siswa[]
   jadwal  Jadwal[]
+  tugas   Tugas[]
   riwayatLama RiwayatKelas[] @relation("RombelLama")
   riwayatBaru RiwayatKelas[] @relation("RombelBaru")
 
@@ -151,6 +152,8 @@ model Guru {
   izinProses  Perizinan[]   @relation("IzinOleh")
   catatLanggar Pelanggaran[] @relation("LanggarOleh")
   riwayatProses RiwayatKelas[] @relation("RiwayatOleh")
+  tugas       Tugas[]
+  percakapan  Percakapan[]  @relation("WaliPercakapan")
 
   @@map("guru")
 }
@@ -168,6 +171,10 @@ model Pengguna {
   guru  Guru?  @relation(fields: [guruId], references: [id])
   siswa Siswa? @relation(fields: [siswaId], references: [id])
   sesi  Sesi[]
+  anak  OrtuSiswa[]   @relation("OrtuAnak")
+  percakapanOrtu Percakapan[] @relation("OrtuPercakapan")
+  pesanDikirim   Pesan[]      @relation("PengirimPesan")
+  izinDiajukan   Perizinan[]  @relation("PengajuIzin")
 
   @@map("pengguna")
 }
@@ -193,6 +200,9 @@ model Siswa {
   izin      Perizinan[]
   langgar   Pelanggaran[]
   riwayat   RiwayatKelas[]
+  ortu      OrtuSiswa[]
+  pengumpulanTugas PengumpulanTugas[]
+  percakapan Percakapan[]
 
   @@map("siswa")
 }
@@ -209,6 +219,7 @@ model Mapel {
   jadwal  Jadwal[]
   absensi Absensi[]
   nilai   Nilai[]
+  tugas   Tugas[]
 
   @@map("mapel")
 }
@@ -316,11 +327,13 @@ model Perizinan {
   lampiranUrl String?    @map("lampiran_url")
   status      StatusIzin @default(DIAJUKAN)
   diprosesOleh String?   @map("diproses_oleh") @db.Uuid
+  diajukanOlehId String? @map("diajukan_oleh_id") @db.Uuid
   createdAt   DateTime   @default(now()) @map("created_at")
   updatedAt   DateTime   @updatedAt @map("updated_at")
 
-  siswa     Siswa @relation(fields: [siswaId], references: [id])
-  pemroses  Guru? @relation("IzinOleh", fields: [diprosesOleh], references: [id])
+  siswa     Siswa     @relation(fields: [siswaId], references: [id])
+  pemroses  Guru?     @relation("IzinOleh", fields: [diprosesOleh], references: [id])
+  pengaju   Pengguna? @relation("PengajuIzin", fields: [diajukanOlehId], references: [id])
 
   @@map("perizinan")
 }
@@ -422,4 +435,92 @@ model Notifikasi {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("notifikasi")
+}
+
+/** Relasi orang tua - anak (siswa) multi-anak (Fase 2) */
+model OrtuSiswa {
+  id        String   @id @default(uuid()) @db.Uuid
+  ortuId    String   @map("ortu_id") @db.Uuid
+  siswaId   String   @map("siswa_id") @db.Uuid
+  hubungan  String?  @db.VarChar(20) // AYAH, IBU, WALI
+  createdAt DateTime @default(now()) @map("created_at")
+
+  ortu  Pengguna @relation("OrtuAnak", fields: [ortuId], references: [id], onDelete: Cascade)
+  siswa Siswa    @relation(fields: [siswaId], references: [id], onDelete: Cascade)
+
+  @@unique([ortuId, siswaId])
+  @@map("ortu_siswa")
+}
+
+/** Tugas & PR dari Guru Mapel (Fase 2) */
+model Tugas {
+  id           String    @id @default(uuid()) @db.Uuid
+  rombelId     String    @map("rombel_id") @db.Uuid
+  mapelId      String    @map("mapel_id") @db.Uuid
+  guruId       String    @map("guru_id") @db.Uuid
+  judul        String    @db.VarChar(150)
+  deskripsi    String    @db.Text
+  tenggatWaktu DateTime  @map("tenggat_waktu")
+  fileUrl      String?   @map("file_url")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  rombel      Rombel             @relation(fields: [rombelId], references: [id])
+  mapel       Mapel              @relation(fields: [mapelId], references: [id])
+  guru        Guru               @relation(fields: [guruId], references: [id])
+  pengumpulan PengumpulanTugas[]
+
+  @@map("tugas")
+}
+
+/** Pengumpulan Tugas oleh Siswa (Fase 2) */
+model PengumpulanTugas {
+  id              String    @id @default(uuid()) @db.Uuid
+  tugasId         String    @map("tugas_id") @db.Uuid
+  siswaId         String    @map("siswa_id") @db.Uuid
+  fileUrl         String    @map("file_url")
+  catatan         String?   @db.Text
+  nilai           Decimal?  @db.Decimal(5, 2)
+  catatanGuru     String?   @map("catatan_guru") @db.Text
+  dikumpulkanPada DateTime  @default(now()) @map("dikumpulkan_pada")
+  dinilaiPada     DateTime? @map("dinilai_pada")
+
+  tugas Tugas @relation(fields: [tugasId], references: [id], onDelete: Cascade)
+  siswa Siswa @relation(fields: [siswaId], references: [id], onDelete: Cascade)
+
+  @@unique([tugasId, siswaId])
+  @@map("pengumpulan_tugas")
+}
+
+/** Percakapan terarah Wali Kelas ↔ Orang Tua siswa binaan (Fase 2) */
+model Percakapan {
+  id        String   @id @default(uuid()) @db.Uuid
+  waliId    String   @map("wali_id") @db.Uuid
+  ortuId    String   @map("ortu_id") @db.Uuid
+  siswaId   String   @map("siswa_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  wali  Guru     @relation("WaliPercakapan", fields: [waliId], references: [id])
+  ortu  Pengguna @relation("OrtuPercakapan", fields: [ortuId], references: [id])
+  siswa Siswa    @relation(fields: [siswaId], references: [id])
+  pesan Pesan[]
+
+  @@unique([waliId, ortuId, siswaId])
+  @@map("percakapan")
+}
+
+/** Pesan di dalam percakapan Wali ↔ Ortu */
+model Pesan {
+  id           String   @id @default(uuid()) @db.Uuid
+  percakapanId String   @map("percakapan_id") @db.Uuid
+  pengirimId   String   @map("pengirim_id") @db.Uuid
+  isi          String   @db.Text
+  isDibaca     Boolean  @default(false) @map("is_dibaca")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  percakapan Percakapan @relation(fields: [percakapanId], references: [id], onDelete: Cascade)
+  pengirim   Pengguna   @relation("PengirimPesan", fields: [pengirimId], references: [id])
+
+  @@map("pesan")
 }

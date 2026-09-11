@@ -115,7 +115,7 @@ class _NilaiScreenState extends ConsumerState<NilaiScreen> {
                             return const Text('Belum punya mapel diampu');
                           }
                           return DropdownButtonFormField<String>(
-                            value: _mapelId,
+                            initialValue: _mapelId,
                             items: m
                                 .map((x) =>
                                     DropdownMenuItem(value: x.id, child: Text(x.nama)))
@@ -128,7 +128,7 @@ class _NilaiScreenState extends ConsumerState<NilaiScreen> {
                       const SizedBox(height: 8),
                       // Semester
                       DropdownButtonFormField<String>(
-                        value: _semesterVal,
+                        initialValue: _semesterVal,
                         items: _semesterList
                             .map((s) =>
                                 DropdownMenuItem(value: s, child: Text(s)))

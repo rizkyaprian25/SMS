@@ -1,5 +1,7 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { GuruService } from './guru.service';
+import type { JwtPayload } from '../common/decorators/current-user.decorator';
+import { dekripsiTeks } from '../common/crypto';
 
 function txMock() {
   return {
@@ -51,5 +53,30 @@ describe('GuruService', () => {
     prisma.mapel.count = jest.fn().mockResolvedValue(0);
     const svc = new GuruService(prisma as never);
     await expect(svc.setMapel('g1', { mapelIds: ['m-x'] })).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('enroll menyimpan template terenkripsi + consent (bukan plaintext)', async () => {
+    process.env.ENKRIPSI_WAJAH_KEY =
+      '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+    const update = jest.fn().mockResolvedValue({});
+    const prisma = {
+      ...mockPrisma(),
+      guru: { ...mockPrisma().guru, findUnique: jest.fn().mockResolvedValue({ id: 'g1' }), update },
+    };
+    const svc = new GuruService(prisma as never);
+    const user: JwtPayload = { sub: 'u1', role: 'GURU_MAPEL', guruId: 'g1' };
+    const res = await svc.enrollWajah('g1', user, { embedding: 'e'.repeat(64), consent: true });
+    expect(res.data).toMatchObject({ faceConsent: true });
+    const tersimpan = update.mock.calls[0][0].data.faceEmbeddingEnc as string;
+    expect(tersimpan).not.toContain('e'.repeat(8));
+    expect(dekripsiTeks(tersimpan)).toBe('e'.repeat(64));
+  });
+
+  it('enroll ditolak untuk guru lain (403)', async () => {
+    const svc = new GuruService(mockPrisma() as never);
+    const user: JwtPayload = { sub: 'u2', role: 'GURU_MAPEL', guruId: 'g9' };
+    await expect(
+      svc.enrollWajah('g1', user, { embedding: 'e'.repeat(64), consent: true }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

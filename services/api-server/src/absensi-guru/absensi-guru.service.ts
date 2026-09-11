@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { withinRadius } from '../common/utils/haversine';
+import { hariIniUTC } from '../common/dates';
 import type { JwtPayload } from '../common/decorators/current-user.decorator';
 import { PresensiFallbackDto, PresensiMasukDto } from './dto/presensi.dto';
 import { QueryRekapGuruDto, VerifikasiFallbackDto } from './dto/query-rekap.dto';
@@ -39,10 +40,6 @@ export class AbsensiGuruService {
     return { jam, menit };
   }
 
-  private tanggalHariIni(): Date {
-    return new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z');
-  }
-
   private diLuarArea(lat?: number, lng?: number): boolean {
     if (lat === undefined || lng === undefined) return false;
     const g = this.geofence();
@@ -56,7 +53,7 @@ export class AbsensiGuruService {
     if (dto.faceScore < this.skorMinimal()) {
       throw new UnauthorizedException('Wajah tidak cocok — coba lagi atau pakai fallback manual');
     }
-    const tanggal = this.tanggalHariIni();
+    const tanggal = hariIniUTC();
     const ada = await this.prisma.absensiGuru.findUnique({
       where: { guruId_tanggal: { guruId: user.guruId, tanggal } },
     });
@@ -93,7 +90,7 @@ export class AbsensiGuruService {
 
   async pulang(user: JwtPayload) {
     if (!user.guruId) throw new ForbiddenException('Akun belum terhubung ke data guru');
-    const tanggal = this.tanggalHariIni();
+    const tanggal = hariIniUTC();
     const ada = await this.prisma.absensiGuru.findUnique({
       where: { guruId_tanggal: { guruId: user.guruId, tanggal } },
     });
@@ -108,7 +105,7 @@ export class AbsensiGuruService {
 
   async fallback(user: JwtPayload, dto: PresensiFallbackDto) {
     if (!user.guruId) throw new ForbiddenException('Akun belum terhubung ke data guru');
-    const tanggal = this.tanggalHariIni();
+    const tanggal = hariIniUTC();
     const ada = await this.prisma.absensiGuru.findUnique({
       where: { guruId_tanggal: { guruId: user.guruId, tanggal } },
     });
@@ -146,7 +143,7 @@ export class AbsensiGuruService {
   async hariIni(user: JwtPayload) {
     if (!user.guruId) throw new ForbiddenException('Akun belum terhubung ke data guru');
     const row = await this.prisma.absensiGuru.findUnique({
-      where: { guruId_tanggal: { guruId: user.guruId, tanggal: this.tanggalHariIni() } },
+      where: { guruId_tanggal: { guruId: user.guruId, tanggal: hariIniUTC() } },
     });
     return { data: row };
   }

@@ -1,7 +1,11 @@
-import { NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { RaporService } from './rapor.service';
+import type { JwtPayload } from '../common/decorators/current-user.decorator';
 
-function mockPrisma(nilai: unknown[] = []) {
+const admin: JwtPayload = { sub: 'u9', role: 'SUPER_ADMIN', guruId: 'g9' };
+const wali71: JwtPayload = { sub: 'u2', role: 'WALI_KELAS', guruId: 'g1' };
+
+function mockPrisma(nilai: unknown[] = [], waliKelasId: string | null = 'g1') {
   return {
     siswa: {
       findUnique: jest.fn().mockResolvedValue({
@@ -9,7 +13,7 @@ function mockPrisma(nilai: unknown[] = []) {
         nama: 'Budi',
         nisn: '1234567890',
         deletedAt: null,
-        rombel: { nama: '7A' },
+        rombel: { id: 'r1', nama: '7A', waliKelasId },
       }),
     },
     tahunAjaran: { findFirst: jest.fn().mockResolvedValue({ id: 'ta1' }) },
@@ -28,7 +32,7 @@ describe('RaporService', () => {
     const svc = new RaporService(
       mockPrisma([N('m1', 'MTK', 80), N('m1', 'MTK', 90), N('m2', 'IPA', 70)]) as never,
     );
-    const res = await svc.rekap('s1', {});
+    const res = await svc.rekap('s1', {}, admin);
     expect(res.data.mapel).toHaveLength(2);
     expect(res.data.mapel.find((m) => m.mapelNama === 'MTK')).toMatchObject({
       rataRata: 85,
@@ -41,12 +45,17 @@ describe('RaporService', () => {
     const prisma = mockPrisma();
     prisma.siswa.findUnique = jest.fn().mockResolvedValue(null);
     const svc = new RaporService(prisma as never);
-    await expect(svc.rekap('x', {})).rejects.toBeInstanceOf(NotFoundException);
+    await expect(svc.rekap('x', {}, admin)).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('wali luar binaan ditolak (403)', async () => {
+    const svc = new RaporService(mockPrisma([], 'guru-lain') as never);
+    await expect(svc.rekap('s1', {}, wali71)).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('pdf menghasilkan file %PDF bernama nisn+semester', async () => {
     const svc = new RaporService(mockPrisma([N('m1', 'MTK', 80)]) as never);
-    const { namaFile, buffer } = await svc.pdf('s1', {});
+    const { namaFile, buffer } = await svc.pdf('s1', {}, admin);
     expect(namaFile).toBe('rapor-1234567890-GANJIL.pdf');
     expect(buffer.subarray(0, 4).toString()).toBe('%PDF');
   });

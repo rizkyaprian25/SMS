@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: SMS SMP Negeri API
-  description: Kontrak tunggal web + mobile. Acuan baca: docs/07-api-contract.md
+  description: "Kontrak tunggal web + mobile. Acuan baca: docs/07-api-contract.md"
   version: 1.0.0
 servers:
   - url: http://localhost:3001/api/v1
@@ -9,6 +9,7 @@ tags:
   - name: auth
   - name: master
   - name: akademik
+  - name: fase2
 security:
   - bearerAuth: []
 paths:
@@ -321,9 +322,74 @@ paths:
       tags: [akademik]
       summary: Input nilai bulk per mapel
       responses: { '201': { description: Tersimpan } }
+  /ortu/anak-saya:
+    get:
+      tags: [fase2]
+      summary: List anak yang terhubung dengan akun orang tua (ORANG_TUA)
+      responses: { '200': { description: OK } }
+  /tugas:
+    get:
+      tags: [fase2]
+      summary: List tugas per rombel / mapel
+      responses: { '200': { description: OK } }
+    post:
+      tags: [fase2]
+      summary: Buat tugas baru (GURU_MAPEL)
+      responses: { '201': { description: Dibuat } }
+  /tugas/{id}:
+    get:
+      tags: [fase2]
+      summary: Detail tugas
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses: { '200': { description: OK } }
+  /tugas/{id}/kumpul:
+    post:
+      tags: [fase2]
+      summary: Kumpulkan tugas (SISWA)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses: { '200': { description: Terkumpul } }
+  /tugas/{id}/pengumpulan:
+    get:
+      tags: [fase2]
+      summary: Daftar pengumpulan tugas siswa (GURU_MAPEL)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses: { '200': { description: OK } }
+  /tugas/pengumpulan/{id}/nilai:
+    patch:
+      tags: [fase2]
+      summary: Beri nilai pengumpulan tugas (GURU_MAPEL)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses: { '200': { description: Dinilai } }
+  /percakapan:
+    get:
+      tags: [fase2]
+      summary: List percakapan aktif (WALI_KELAS, ORANG_TUA)
+      responses: { '200': { description: OK } }
+    post:
+      tags: [fase2]
+      summary: Mulai percakapan baru dengan wali kelas (WALI_KELAS, ORANG_TUA)
+      responses: { '201': { description: Dibuat } }
+  /percakapan/{id}/pesan:
+    get:
+      tags: [fase2]
+      summary: Histori pesan percakapan (WALI_KELAS, ORANG_TUA)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses: { '200': { description: OK } }
+    post:
+      tags: [fase2]
+      summary: Kirim pesan dalam percakapan (WALI_KELAS, ORANG_TUA)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses: { '201': { description: Terkirim } }
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+

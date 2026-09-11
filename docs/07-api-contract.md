@@ -65,6 +65,17 @@
 |---|---|---|
 | `GET/POST /perizinan` | guru/wali (mewakili, MVP) | Fase 2: ORANG_TUA langsung |
 | `POST /perizinan/:id/putuskan` | WALI_KELAS, ADMIN | `{ putusan, catatan? }` → auto-update absensi |
+| `GET /ortu/anak-saya` | ORANG_TUA | list anak dari akun orang tua yang login |
+| `POST /tugas` | GURU_MAPEL | buat tugas baru `{ rombel_id, mapel_id, judul, deskripsi, tenggat_waktu, file_url? }` |
+| `GET /tugas?rombelId=&mapelId=` | GURU, SISWA, ORANG_TUA | list tugas |
+| `GET /tugas/:id` | GURU, SISWA, ORANG_TUA | detail tugas |
+| `POST /tugas/:id/kumpul` | SISWA | kumpul tugas `{ file_url, catatan? }` |
+| `GET /tugas/:id/pengumpulan` | GURU_MAPEL | daftar pengumpulan tugas siswa |
+| `PATCH /tugas/pengumpulan/:id/nilai` | GURU_MAPEL | beri nilai `{ nilai, catatan_guru? }` |
+| `GET /percakapan` | WALI_KELAS, ORANG_TUA | list percakapan aktif |
+| `POST /percakapan` | WALI_KELAS, ORANG_TUA | mulai percakapan `{ siswa_id }` |
+| `GET /percakapan/:id/pesan` | WALI_KELAS, ORANG_TUA | histori pesan |
+| `POST /percakapan/:id/pesan` | WALI_KELAS, ORANG_TUA | kirim pesan `{ isi }` |
 | `GET/POST /pengumuman?target=` | ADMIN tulis, semua baca sesuai target | |
 | `GET/POST /pelanggaran` | GURU_BK, WALI_KELAS | akses dibatasi BK + wali ybs |
 | `GET /dashboard/ringkasan` | ADMIN, KEPSEK | `{ total_siswa, total_guru, total_rombel, hadir_hari_ini, alpa_hari_ini }` |

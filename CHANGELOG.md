@@ -19,3 +19,14 @@ Format: `YYYY-MM-DD — ringkasan`.
 - Backend lengkap: 17 modul (17 suites / 60 test ✅). Baru: `tahun-ajaran` (list/aktif/create/aktifkan), `guru` enroll/hapus wajah (consent + omit embedding di API), `absensi-guru` hariIni, presensi face/geo/fallback, verifikasi admin. `openapi.yaml` 34 paths unik.
 - Mobile nilai bulk (repo+screen, filter mapel/semester/jenis, input 0-100, bulk 1 request), presensi (geo+fallback+face seam, enroll info di profil), `flutter analyze` bersih + `flutter test` 3/3 ✅.
 - Push + kenaikan kelas: `notifikasi` (FCM modular v14, mode LOG tanpa kredensial, bersih-bersih token mati, hook broadcast pengumuman best-effort, log terkirim, 3 test), `POST /rombel/naik-kelas` (preview per rombel + eksekusi 1 transaksi + riwayat_kelas + audit, 3 test), migrasi `tambah_notifikasi` ✅. Total 18 suites / 66 test ✅.
+- Audit clean-code + security: helmet, throttle (login 5/mnt, refresh 30/mnt, presensi 10–20/mnt), env fail-fast prod, swagger non-prod saja, CORS via env, embedding wajah AES-256-GCM (`ENKRIPSI_WAJAH_KEY`), TahunAjaranModule didaftarkan, absensi bulk cek jadwal (atau override), update milik pencatat, rapor scope wali, helper `dates`/`hari`, web refresh-retry + unduh blob bertoken. Total 18 suites / 71 test ✅.
+
+## 2026-09-11
+- Fondasi Backend & Shared-Types Fase 2 (Siswa, Orang Tua, Tugas & Percakapan):
+  - Skema Prisma: model `OrtuSiswa` (multi-anak), `Tugas` & `PengumpulanTugas` (PR/tugas siswa), `Percakapan` & `Pesan` (komunikasi terarah Wali ↔ Ortu), dan field `diajukanOlehId` pada `Perizinan`.
+  - Shared Types: tipe & DTO baru untuk Ortu-Anak, Tugas, dan Percakapan (`packages/shared-types`).
+  - Backend NestJS: 3 modul baru (`tugas`, `percakapan`, `ortu`) dengan kontrol akses ketat di service (hanya guru pengampu mapel yang dapat membuat/menilai tugas, siswa mengumpulkan tugas sesuai rombel, percakapan dibatasi wali kelas binaan ↔ orang tua resmi).
+  - Kontrak & Dokumentasi: update `docs/02-database-design.md`, `docs/07-api-contract.md`, dan `openapi.yaml`.
+  - Fix Mobile deprecation: perbaikan `DropdownButtonFormField.initialValue` dan `Geolocator.locationSettings` di `apps/mobile-guru`.
+  - Verifikasi: Total 21 test suites / 84 unit tests ✅ (`services/api-server`), `npm run lint` & `npm run build` ✅, `packages/shared-types` lint ✅, `flutter analyze` bersih + `flutter test` 3/3 ✅ (`apps/mobile-guru`), `next build` 16/16 halaman ✅ (`apps/web-dashboard`).
+

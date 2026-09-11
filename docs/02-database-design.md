@@ -78,7 +78,20 @@ Unique: `(guruId, tanggal)`.
 Index: `(siswaId, semesterId, mapelId)`.
 
 ### perizinan
-`id, siswaId fk, tanggalMulai date, tanggalSelesai date, jenis (IZIN/SAKIT), alasan, lampiranUrl nullable, status (DIAJUKAN/DISETUJUI/DITOLAK), diprosesOleh nullable, catatan`
+`id, siswaId fk, diajukanOlehId fk pengguna nullable, tanggalMulai date, tanggalSelesai date, jenis (IZIN/SAKIT), alasan, lampiranUrl nullable, status (DIAJUKAN/DISETUJUI/DITOLAK), diprosesOleh nullable, catatan`
+
+### ortu_siswa (Fase 2)
+`id, ortuId fk pengguna, siswaId fk siswa, hubungan (AYAH/IBU/WALI), createdAt`
+Unique: `(ortuId, siswaId)`
+
+### tugas & pengumpulan_tugas (Fase 2)
+`tugas(id, rombelId fk, mapelId fk, guruId fk, judul, deskripsi, tenggatWaktu, fileUrl nullable, createdAt, updatedAt)`
+`pengumpulan_tugas(id, tugasId fk, siswaId fk, fileUrl, catatan nullable, nilai numeric(5,2) nullable, catatanGuru nullable, dikumpulkanPada, dinilaiPada nullable)`
+Unique: `(tugasId, siswaId)`
+
+### percakapan & pesan (Fase 2)
+`percakapan(id, waliId fk guru, ortuId fk pengguna, siswaId fk siswa, createdAt, updatedAt)` — Unique: `(waliId, ortuId, siswaId)`
+`pesan(id, percakapanId fk, pengirimId fk pengguna, isi, isDibaca bool default false, createdAt)`
 
 ### pelanggaran (BK)
 `id, siswaId fk, tanggal, kategori, poin int, keterangan, dilaporkanOleh fk, konselingCatatan nullable (akses terbatas)`

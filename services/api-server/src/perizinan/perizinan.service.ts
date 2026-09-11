@@ -5,9 +5,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Hari, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { pageMeta, pageParams } from '../common/pagination';
+import { HARI_DARI_JS } from '../common/hari';
 import type { JwtPayload } from '../common/decorators/current-user.decorator';
 import { CreatePerizinanDto, PutuskanIzinDto } from './dto/perizinan.dto';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
@@ -16,16 +17,6 @@ import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
  * MVP: diajukan guru/wali mewakili (Fase 2: ortu langsung — kolom diajukan_oleh
  * sudah siap). Disetujui -> absensi IZIN/SAKIT otomatis per jadwal rombel.
  */
-const HARI_DARI_JS: Record<number, Hari | null> = {
-  0: null, // Minggu libur
-  1: Hari.SENIN,
-  2: Hari.SELASA,
-  3: Hari.RABU,
-  4: Hari.KAMIS,
-  5: Hari.JUMAT,
-  6: Hari.SABTU,
-};
-
 @Injectable()
 export class PerizinanService {
   constructor(private readonly prisma: PrismaService) {}

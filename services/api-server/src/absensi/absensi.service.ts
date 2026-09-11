@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { pageMeta, pageParams } from '../common/pagination';
+import { awalHariUTC, hariIniUTC } from '../common/dates';
+import { HARI_DARI_JS } from '../common/hari';
 import { assertDapatInputMapel } from '../common/access';
 import type { JwtPayload } from '../common/decorators/current-user.decorator';
 import { AbsensiBulkDto } from './dto/absensi-bulk.dto';
@@ -20,10 +22,6 @@ import { UpdateAbsensiDto } from './dto/update-absensi.dto';
 export class AbsensiService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private butaTanggal(iso: string): Date {
-    return new Date(`${iso}T00:00:00.000Z`);
-  }
-
   async createBulk(user: JwtPayload, dto: AbsensiBulkDto) {
     await assertDapatInputMapel(this.prisma, {
       role: user.role,
@@ -32,7 +30,23 @@ export class AbsensiService {
     });
     if (!user.guruId) throw new ForbiddenException('Akun belum terhubung ke data guru');
     const guruId = user.guruId;
-    const tanggal = this.butaTanggal(dto.tanggal);
+    const tanggal = awalHariUTC(dto.tanggal);
+
+    // Guru hanya input sesuai jadwalnya; di luar jadwal wajib alasan_override
+    // (jam pengganti) yang tercatat di audit — docs/03.
+    if (user.role !== 'SUPER_ADMIN' && !dto.alasanOverride) {
+      const hari = HARI_DARI_JS[tanggal.getUTCDay()];
+      const cocok = hari
+        ? await this.prisma.jadwal.count({
+            where: { guruId, mapelId: dto.mapelId, rombelId: dto.rombelId, hari },
+          })
+        : 0;
+      if (!cocok) {
+        throw new ForbiddenException(
+          'Di luar jadwal mengajar Anda — isi alasan_override bila jam pengganti',
+        );
+      }
+    }
 
     const ids = dto.items.map((i) => i.siswaId);
     const terdaftar = await this.prisma.siswa.count({ where: { id: { in: ids } } });
@@ -91,7 +105,7 @@ export class AbsensiService {
       limit: String(query.limit ?? 50),
     });
     const where = {
-      ...(query.tanggal ? { tanggal: this.butaTanggal(query.tanggal) } : {}),
+      ...(query.tanggal ? { tanggal: awalHariUTC(query.tanggal) } : {}),
       ...(query.mapelId ? { mapelId: query.mapelId } : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.rombelId ? { siswa: { rombelId: query.rombelId } } : {}),
@@ -120,8 +134,8 @@ export class AbsensiService {
       ...(q.dari || q.sampai
         ? {
             tanggal: {
-              ...(q.dari ? { gte: this.butaTanggal(q.dari) } : {}),
-              ...(q.sampai ? { lte: this.butaTanggal(q.sampai) } : {}),
+              ...(q.dari ? { gte: awalHariUTC(q.dari) } : {}),
+              ...(q.sampai ? { lte: awalHariUTC(q.sampai) } : {}),
             },
           }
         : {}),
@@ -134,15 +148,17 @@ export class AbsensiService {
     return { data: grup.map((g) => ({ status: g.status, jumlah: g._count.status })) };
   }
 
-  /** Edit hanya di hari yang sama, kecuali SUPER_ADMIN. Selalu audit. */
+  /** Edit hari-H oleh pencatatnya sendiri; lewat hari itu hanya SUPER_ADMIN. Selalu audit. */
   async update(id: string, user: JwtPayload, dto: UpdateAbsensiDto) {
     const lama = await this.prisma.absensi.findUnique({ where: { id } });
     if (!lama) throw new NotFoundException('Absensi tidak ditemukan');
-    const hariIni = new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z');
-    if (lama.tanggal.getTime() !== hariIni.getTime() && user.role !== 'SUPER_ADMIN') {
+    if (lama.tanggal.getTime() !== hariIniUTC().getTime() && user.role !== 'SUPER_ADMIN') {
       throw new ForbiddenException('Hanya bisa diubah di hari yang sama');
     }
     if (!user.guruId) throw new ForbiddenException('Akun belum terhubung ke data guru');
+    if (user.role !== 'SUPER_ADMIN' && lama.dicatatOleh !== user.guruId) {
+      throw new ForbiddenException('Hanya pencatatnya yang boleh mengubah');
+    }
     const baru = await this.prisma.absensi.update({ where: { id }, data: dto });
     await this.prisma.auditLog.create({
       data: {

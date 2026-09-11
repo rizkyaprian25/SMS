@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AbsensiGuruService } from './absensi-guru.service';
 import { PresensiFallbackDto, PresensiMasukDto } from './dto/presensi.dto';
 import { QueryRekapGuruDto, VerifikasiFallbackDto } from './dto/query-rekap.dto';
@@ -12,6 +13,7 @@ import { CurrentUser, type JwtPayload } from '../common/decorators/current-user.
 export class AbsensiGuruController {
   constructor(private readonly presensi: AbsensiGuruService) {}
 
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Post('masuk')
   masuk(@CurrentUser() user: JwtPayload, @Body() dto: PresensiMasukDto) {
     return this.presensi.masuk(user, dto);
@@ -22,6 +24,7 @@ export class AbsensiGuruController {
     return this.presensi.pulang(user);
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('fallback')
   fallback(@CurrentUser() user: JwtPayload, @Body() dto: PresensiFallbackDto) {
     return this.presensi.fallback(user, dto);

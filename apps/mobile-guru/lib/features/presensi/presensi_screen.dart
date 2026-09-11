@@ -70,8 +70,10 @@ class _PresensiScreenState extends ConsumerState<PresensiScreen> {
         await Geolocator.requestPermission();
       }
       return await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 10),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 10),
+        ),
       );
     } catch (_) {
       return null;

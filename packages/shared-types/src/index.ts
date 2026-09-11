@@ -68,3 +68,104 @@ export interface AbsensiBulkRequest {
   alasan_override?: string;
   items: AbsensiBulkItem[];
 }
+
+// === FASE 2: Siswa, Orang Tua, Tugas, & Percakapan ===
+
+export const HubunganOrtu = {
+  AYAH: 'AYAH',
+  IBU: 'IBU',
+  WALI: 'WALI',
+} as const;
+export type HubunganOrtu = (typeof HubunganOrtu)[keyof typeof HubunganOrtu];
+
+export interface OrtuAnakItem {
+  id: string;
+  ortu_id: string;
+  siswa_id: string;
+  hubungan?: string;
+  siswa: {
+    id: string;
+    nama: string;
+    nisn: string;
+    rombel_id?: string | null;
+    rombel?: {
+      id: string;
+      nama: string;
+    } | null;
+  };
+}
+
+export interface TugasItem {
+  id: string;
+  rombel_id: string;
+  mapel_id: string;
+  guru_id: string;
+  judul: string;
+  deskripsi: string;
+  tenggat_waktu: string;
+  file_url?: string | null;
+  created_at: string;
+  rombel?: { id: string; nama: string };
+  mapel?: { id: string; nama: string; kode: string };
+  guru?: { id: string; nama: string };
+}
+
+export interface CreateTugasRequest {
+  rombel_id: string;
+  mapel_id: string;
+  judul: string;
+  deskripsi: string;
+  tenggat_waktu: string; // ISO 8601 UTC
+  file_url?: string;
+}
+
+export interface KumpulTugasRequest {
+  file_url: string;
+  catatan?: string;
+}
+
+export interface NilaiTugasRequest {
+  nilai: number; // 0 - 100
+  catatan_guru?: string;
+}
+
+export interface PengumpulanTugasItem {
+  id: string;
+  tugas_id: string;
+  siswa_id: string;
+  file_url: string;
+  catatan?: string | null;
+  nilai?: number | null;
+  catatan_guru?: string | null;
+  dikumpulkan_pada: string;
+  dinilai_pada?: string | null;
+  siswa?: { id: string; nama: string; nisn: string };
+}
+
+export interface PercakapanItem {
+  id: string;
+  wali_id: string;
+  ortu_id: string;
+  siswa_id: string;
+  created_at: string;
+  updated_at: string;
+  wali?: { id: string; nama: string };
+  ortu?: { id: string; email: string };
+  siswa?: { id: string; nama: string };
+  terakhir_pesan?: string;
+}
+
+export interface PesanItem {
+  id: string;
+  percakapan_id: string;
+  pengirim_id: string;
+  isi: string;
+  is_dibaca: boolean;
+  created_at: string;
+  pengirim?: { id: string; email: string; role: Role };
+}
+
+export interface KirimPesanRequest {
+  isi: string;
+}
+

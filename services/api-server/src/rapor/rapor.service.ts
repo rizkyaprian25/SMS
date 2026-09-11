@@ -1,6 +1,7 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { PrismaService } from '../prisma/prisma.service';
+import type { JwtPayload } from '../common/decorators/current-user.decorator';
 import { QueryRaporDto } from './dto/query-rapor.dto';
 
 export interface RaporMapel {
@@ -26,12 +27,18 @@ export class RaporService {
     return 'Perlu Bimbingan';
   }
 
-  async rekap(siswaId: string, q: QueryRaporDto) {
+  async rekap(siswaId: string, q: QueryRaporDto, user: JwtPayload) {
     const siswa = await this.prisma.siswa.findUnique({
       where: { id: siswaId },
-      include: { rombel: { select: { nama: true } } },
+      include: { rombel: { select: { id: true, nama: true, waliKelasId: true } } },
     });
     if (!siswa || siswa.deletedAt) throw new NotFoundException('Siswa tidak ditemukan');
+    // Wali hanya rapor kelas binaannya (GURU_MAPEL tidak boleh buka rapor).
+    if (user.role === 'WALI_KELAS') {
+      if (!user.guruId || siswa.rombel?.waliKelasId !== user.guruId) {
+        throw new ForbiddenException('Di luar kelas binaan Anda');
+      }
+    }
     let tahunAjaranId = q.tahunAjaranId;
     if (!tahunAjaranId) {
       const aktif = await this.prisma.tahunAjaran.findFirst({ where: { isAktif: true } });
@@ -69,8 +76,8 @@ export class RaporService {
     };
   }
 
-  async pdf(siswaId: string, q: QueryRaporDto): Promise<{ namaFile: string; buffer: Buffer }> {
-    const { data } = await this.rekap(siswaId, q);
+  async pdf(siswaId: string, q: QueryRaporDto, user: JwtPayload): Promise<{ namaFile: string; buffer: Buffer }> {
+    const { data } = await this.rekap(siswaId, q, user);
     const doc = await PDFDocument.create();
     let page = doc.addPage([595, 842]);
     const font = await doc.embedFont(StandardFonts.Helvetica);

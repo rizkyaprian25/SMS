@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { RombelModule } from './rombel/rombel.module';
@@ -17,11 +19,17 @@ import { ReportsModule } from './reports/reports.module';
 import { GuruModule } from './guru/guru.module';
 import { MapelModule } from './mapel/mapel.module';
 import { NotifikasiModule } from './notifikasi/notifikasi.module';
+import { TahunAjaranModule } from './tahun-ajaran/tahun-ajaran.module';
+import { TugasModule } from './tugas/tugas.module';
+import { PercakapanModule } from './percakapan/percakapan.module';
+import { OrtuModule } from './ortu/ortu.module';
 import { HealthController } from './health.controller';
 
 @Module({
   imports: [
     PrismaModule,
+    // Bawaan longgar (klien normal), endpoint sensitif diperketat via @Throttle.
+    ThrottlerModule.forRoot([{ name: 'bawaan', ttl: 60000, limit: 300 }]),
     JwtModule.register({
       global: true,
       secret: process.env.JWT_ACCESS_SECRET ?? 'dev-access-secret-min-32-karakter-xxxx',
@@ -43,7 +51,12 @@ import { HealthController } from './health.controller';
     GuruModule,
     MapelModule,
     NotifikasiModule,
+    TahunAjaranModule,
+    TugasModule,
+    PercakapanModule,
+    OrtuModule,
   ],
   controllers: [HealthController],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

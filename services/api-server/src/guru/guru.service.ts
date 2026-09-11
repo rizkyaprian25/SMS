@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { pageMeta, pageParams } from '../common/pagination';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import type { JwtPayload } from '../common/decorators/current-user.decorator';
+import { enkripsiTeks } from '../common/crypto';
 import { CreateGuruDto, SetMapelDto, UpdateGuruDto } from './dto/guru.dto';
 import { EnrollWajahDto } from './dto/enroll-wajah.dto';
 
@@ -125,10 +126,11 @@ export class GuruService {
     }
     const lama = await this.prisma.guru.findUnique({ where: { id } });
     if (!lama || lama.deletedAt) throw new NotFoundException('Guru tidak ditemukan');
-    // TODO prod: enkripsi embedding (AES-256-GCM, kunci KMS) sebelum simpan.
+    // Template terenkripsi at-rest; tidak pernah dibaca kembali server
+    // (pencocokan di HP, kirim skor saja — docs/09).
     await this.prisma.guru.update({
       where: { id },
-      data: { faceEmbeddingEnc: dto.embedding, faceConsent: true, faceConsentAt: new Date() },
+      data: { faceEmbeddingEnc: enkripsiTeks(dto.embedding), faceConsent: true, faceConsentAt: new Date() },
     });
     return { data: { id, faceConsent: true } };
   }

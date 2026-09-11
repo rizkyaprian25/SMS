@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { hariIniUTC } from '../common/dates';
 
 /** Kartu ringkasan kepsek/admin — 1 request, agregasi count paralel di server. */
 @Injectable()
@@ -7,7 +8,7 @@ export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
   async ringkasan() {
-    const hariIni = new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z');
+    const hariIni = hariIniUTC();
     const [totalSiswa, totalGuru, totalRombel, hadirHariIni, tidakHadirHariIni] =
       await Promise.all([
         this.prisma.siswa.count({ where: { isAktif: true, deletedAt: null } }),

@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Post, Put, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -22,6 +23,7 @@ export class AuthController {
     });
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // anti brute-force
   @Post('login')
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
     const { data, refreshToken } = await this.auth.login(dto);
@@ -29,6 +31,7 @@ export class AuthController {
     return data;
   }
 
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @Post('refresh')
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const { data, refreshToken } = await this.auth.refresh(req.cookies?.[COOKIE] as string | undefined);

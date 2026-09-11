@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { api, unduhFile } from '@/lib/api';
 
 /** Export via endpoint server (docs/04) + unduh rapor PDF per siswa. */
 export default function LaporanPage() {
@@ -15,7 +15,8 @@ export default function LaporanPage() {
     retry: false,
   });
 
-  const unduh = (url: string) => window.open(`${api.defaults.baseURL}${url}`, '_blank');
+  const unduh = (url: string, params?: Record<string, string>) =>
+    unduhFile(url, params).catch(() => alert('Unduhan gagal — coba login ulang'));
 
   return (
     <main style={{ padding: 24 }}>
@@ -23,7 +24,7 @@ export default function LaporanPage() {
       <h3>Rekap Excel</h3>
       <div style={{ display: 'flex', gap: 8 }}>
         <button onClick={() => unduh('/reports/absensi.xlsx')}>Absensi (.xlsx)</button>
-        <button onClick={() => unduh(`/reports/nilai.xlsx?semester=${semester}`)}>Nilai {semester} (.xlsx)</button>
+        <button onClick={() => unduh('/reports/nilai.xlsx', { semester })}>Nilai {semester} (.xlsx)</button>
         <select value={semester} onChange={(e) => setSemester(e.target.value)}>
           <option value="GANJIL">Ganjil</option>
           <option value="GENAP">Genap</option>
@@ -34,7 +35,7 @@ export default function LaporanPage() {
       {(cari.data?.data ?? []).map((s: { id: string; nama: string; rombel?: { nama: string } | null }) => (
         <div key={s.id}>
           {s.nama} ({s.rombel?.nama ?? '-'}){' '}
-          <button onClick={() => unduh(`/rapor/${s.id}.pdf?semester=${semester}`)}>Unduh PDF</button>
+          <button onClick={() => unduh(`/rapor/${s.id}.pdf`, { semester })}>Unduh PDF</button>
         </div>
       ))}
     </main>
