@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -38,9 +38,18 @@ export default function GuruPage() {
   const [editGuruNama, setEditGuruNama] = useState('');
   const [editGuruNip, setEditGuruNip] = useState('');
 
+  // Debounce search input (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setQ(searchInput.trim());
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
   const guru = useQuery<{ data: Guru[] }>({
     queryKey: qk.guru(q),
     queryFn: async () => (await api.get('/guru', { params: { q } })).data,
+    placeholderData: (prev) => prev,
     retry: false,
   });
 
@@ -127,8 +136,8 @@ export default function GuruPage() {
                 className="input"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Cari berdasarkan nama atau NIP guru..."
-                style={{ paddingLeft: 34 }}
+                placeholder="Ketik NIP (angka) atau nama guru (otomatis mencari)..."
+                style={{ paddingLeft: 36, paddingRight: searchInput ? 64 : 34 }}
               />
               <svg
                 width="16"
@@ -137,11 +146,53 @@ export default function GuruPage() {
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
-                style={{ position: 'absolute', left: 10, top: 11, color: 'var(--text-subtle)' }}
+                style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-subtle)' }}
               >
                 <circle cx="11" cy="11" r="8" />
                 <line x1="21" x2="16.65" y1="21" y2="16.65" />
               </svg>
+
+              {/* Spinner saat loading atau tombol clear X */}
+              <div style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                {guru.isFetching && (
+                  <svg
+                    style={{ animation: 'spin 1s linear infinite', color: 'var(--primary)' }}
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                  >
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                  </svg>
+                )}
+                {searchInput && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchInput('');
+                      setQ('');
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: 2,
+                      color: 'var(--text-subtle)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                    title="Hapus pencarian"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                )}
+              </div>
             </div>
             <button type="submit" className="btn btn-secondary">
               Cari

@@ -1,5 +1,5 @@
 'use client';
-import { useState, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
@@ -33,6 +33,7 @@ function SiswaInner() {
   const { toast } = useToast();
 
   const [searchInput, setSearchInput] = useState(q);
+  const [debouncedQ, setDebouncedQ] = useState(q);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editSiswa, setEditSiswa] = useState<SiswaItem | null>(null);
@@ -51,6 +52,31 @@ function SiswaInner() {
   const [editJenisKelamin, setEditJenisKelamin] = useState('L');
   const [editIsAktif, setEditIsAktif] = useState(true);
 
+  // Debounce input pencarian 300ms (angka NISN / nama langsung auto-search)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const trimmed = searchInput.trim();
+      setDebouncedQ(trimmed);
+
+      // Sinkronkan URL agar bisa di-bookmark/refresh tanpa reload
+      const params = new URLSearchParams();
+      if (trimmed) params.set('q', trimmed);
+      if (rombelFilter) params.set('rombelId', rombelFilter);
+      params.set('page', '1');
+      router.replace(`/siswa?${params.toString()}`, { scroll: false });
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchInput, rombelFilter, router]);
+
+  // Sinkronkan jika query URL berubah dari luar
+  useEffect(() => {
+    if (q !== debouncedQ) {
+      setSearchInput(q);
+      setDebouncedQ(q);
+    }
+  }, [q]);
+
   // Fetch daftar rombel untuk dropdown
   const { data: rombelData } = useQuery<{ data: RombelOption[] }>({
     queryKey: ['rombel-options'],
@@ -59,20 +85,21 @@ function SiswaInner() {
   });
   const rombelOptions = rombelData?.data ?? [];
 
-  // Fetch data siswa
-  const { data, isPending, isError, refetch } = useQuery({
-    queryKey: ['siswa', rombelFilter, '', q, page],
+  // Fetch data siswa dengan live debounced query
+  const { data, isPending, isFetching, isError, refetch } = useQuery({
+    queryKey: ['siswa', rombelFilter, debouncedQ, page],
     queryFn: async () =>
       (
         await api.get('/siswa', {
           params: {
-            q: q || undefined,
+            q: debouncedQ || undefined,
             rombelId: rombelFilter || undefined,
             page,
             limit: 30,
           },
         })
       ).data,
+    placeholderData: (prev) => prev,
     retry: false,
   });
 
@@ -132,15 +159,38 @@ function SiswaInner() {
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
-    router.push(`/siswa?q=${encodeURIComponent(searchInput)}&rombelId=${encodeURIComponent(rombelFilter)}&page=1`);
+    const trimmed = searchInput.trim();
+    setDebouncedQ(trimmed);
+    const params = new URLSearchParams();
+    if (trimmed) params.set('q', trimmed);
+    if (rombelFilter) params.set('rombelId', rombelFilter);
+    params.set('page', '1');
+    router.replace(`/siswa?${params.toString()}`, { scroll: false });
   }
 
   function handleFilterRombel(rId: string) {
-    router.push(`/siswa?q=${encodeURIComponent(q)}&rombelId=${encodeURIComponent(rId)}&page=1`);
+    const params = new URLSearchParams();
+    if (debouncedQ) params.set('q', debouncedQ);
+    if (rId) params.set('rombelId', rId);
+    params.set('page', '1');
+    router.push(`/siswa?${params.toString()}`);
   }
 
   function handlePageChange(newPage: number) {
-    router.push(`/siswa?q=${encodeURIComponent(q)}&rombelId=${encodeURIComponent(rombelFilter)}&page=${newPage}`);
+    const params = new URLSearchParams();
+    if (debouncedQ) params.set('q', debouncedQ);
+    if (rombelFilter) params.set('rombelId', rombelFilter);
+    params.set('page', String(newPage));
+    router.push(`/siswa?${params.toString()}`);
+  }
+
+  function handleClearSearch() {
+    setSearchInput('');
+    setDebouncedQ('');
+    const params = new URLSearchParams();
+    if (rombelFilter) params.set('rombelId', rombelFilter);
+    params.set('page', '1');
+    router.replace(`/siswa?${params.toString()}`, { scroll: false });
   }
 
   function bukaModalEdit(s: SiswaItem) {
@@ -155,7 +205,7 @@ function SiswaInner() {
     <div>
       <div className="page-header">
         <div>
-          <h1>Data Siswa</h1>
+          <h1>Data Siswa &amp; Induk</h1>
           <p>Kelola data induk peserta didik SMP Negeri ({meta.total} siswa terdaftar).</p>
         </div>
         <div className="page-header-actions">
@@ -193,7 +243,7 @@ function SiswaInner() {
         <div className="card-body" style={{ padding: '14px 18px' }}>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
             {/* Filter Rombel */}
-            <div style={{ minWidth: 160 }}>
+            <div style={{ minWidth: 170 }}>
               <select
                 className="input"
                 value={rombelFilter}
@@ -209,15 +259,15 @@ function SiswaInner() {
               </select>
             </div>
 
-            {/* Pencarian Teks */}
+            {/* Pencarian Teks dengan Live Auto-Search Saat Ketik Angka NISN / Nama */}
             <form onSubmit={handleSearch} style={{ display: 'flex', gap: 10, flex: 1, alignItems: 'center' }}>
               <div style={{ position: 'relative', flex: 1 }}>
                 <input
                   className="input"
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
-                  placeholder="Cari nama siswa atau NISN..."
-                  style={{ paddingLeft: 34 }}
+                  placeholder="Ketik angka NISN atau nama siswa (otomatis mencari)..."
+                  style={{ paddingLeft: 36, paddingRight: searchInput ? 64 : 34 }}
                 />
                 <svg
                   width="16"
@@ -226,22 +276,61 @@ function SiswaInner() {
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="2"
-                  style={{ position: 'absolute', left: 10, top: 11, color: 'var(--text-subtle)' }}
+                  style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-subtle)' }}
                 >
                   <circle cx="11" cy="11" r="8" />
                   <line x1="21" x2="16.65" y1="21" y2="16.65" />
                 </svg>
+
+                {/* Spinner saat loading atau tombol clear X */}
+                <div style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {isFetching && (
+                    <svg
+                      style={{ animation: 'spin 1s linear infinite', color: 'var(--primary)' }}
+                      width="15"
+                      height="15"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                    >
+                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                    </svg>
+                  )}
+                  {searchInput && (
+                    <button
+                      type="button"
+                      onClick={handleClearSearch}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: 2,
+                        color: 'var(--text-subtle)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                      title="Hapus pencarian"
+                    >
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
               </div>
               <button type="submit" className="btn btn-secondary">
                 Cari
               </button>
-              {(q || rombelFilter) && (
+              {(debouncedQ || rombelFilter) && (
                 <button
                   type="button"
                   className="btn btn-outline"
                   onClick={() => {
-                    setSearchInput('');
-                    router.push('/siswa?page=1');
+                    handleClearSearch();
+                    if (rombelFilter) handleFilterRombel('');
                   }}
                 >
                   Reset
@@ -272,7 +361,7 @@ function SiswaInner() {
             Tidak ada data siswa ditemukan.
           </p>
           <p style={{ fontSize: 13 }}>
-            {q || rombelFilter
+            {debouncedQ || rombelFilter
               ? 'Tidak ada siswa yang cocok dengan filter atau kata kunci pencarian.'
               : 'Belum ada data siswa. Silakan klik "Tambah Siswa Baru" atau import berkas Excel.'}
           </p>
