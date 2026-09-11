@@ -167,6 +167,7 @@ model Pengguna {
 
   guru  Guru?  @relation(fields: [guruId], references: [id])
   siswa Siswa? @relation(fields: [siswaId], references: [id])
+  sesi  Sesi[]
 
   @@map("pengguna")
 }
@@ -392,4 +393,33 @@ model Perangkat {
 
   @@unique([penggunaId, fcmToken])
   @@map("perangkat")
+}
+
+/** Sesi refresh per device — rotasi tiap dipakai, bisa dicabut per device. */
+model Sesi {
+  id          String   @id @default(uuid()) @db.Uuid
+  penggunaId  String   @map("pengguna_id") @db.Uuid
+  refreshHash String   @unique @map("refresh_hash")
+  expiresAt   DateTime @map("expires_at")
+  dicabut     Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  pengguna Pengguna @relation(fields: [penggunaId], references: [id], onDelete: Cascade)
+
+  @@map("sesi")
+}
+
+/** Log pengiriman push — outbox sederhana (tanpa redis di MVP). */
+model Notifikasi {
+  id        String   @id @default(uuid()) @db.Uuid
+  judul     String
+  isi       String   @db.Text
+  route     String?
+  target    String?  @db.VarChar(50)
+  terkirim  Int      @default(0)
+  gagal     Int      @default(0)
+  mode      String   @default("FCM") @db.VarChar(10) // FCM atau LOG (tanpa kredensial)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("notifikasi")
 }

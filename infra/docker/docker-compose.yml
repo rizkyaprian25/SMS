@@ -8,7 +8,9 @@ services:
       POSTGRES_PASSWORD: sms
       POSTGRES_DB: sms
     ports:
-      - "5432:5432"
+      # Host 5433 agar tidak bentrok bila ada postgres proyek lain di 5432.
+      # Samakan dengan DATABASE_URL di services/api-server/.env
+      - "5433:5432"
     volumes:
       - sms-pgdata:/var/lib/postgresql/data
 

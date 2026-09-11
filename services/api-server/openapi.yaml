@@ -46,6 +46,23 @@ paths:
       summary: Profil + role + mapel diampu
       responses:
         '200': { description: OK }
+  /auth/refresh:
+    post:
+      tags: [auth]
+      summary: Tukar refresh cookie dengan pasangan token baru (rotasi)
+      responses:
+        '200': { description: OK }
+        '401': { description: Sesi berakhir }
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Cabut sesi device ini (?semua=true untuk semua device)
+      responses: { '200': { description: OK } }
+  /auth/devices/token:
+    put:
+      tags: [auth]
+      summary: Daftar/update FCM token device
+      responses: { '200': { description: OK } }
   /tahun-ajaran:
     get:
       tags: [master]
@@ -69,6 +86,73 @@ paths:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
         - { name: tanggal, in: query, schema: { type: string, format: date } }
       responses: { '200': { description: OK } }
+  /rombel/naik-kelas:
+    post:
+      tags: [master]
+      summary: Kenaikan kelas massal (?preview=true dulu). Tulis riwayat + audit
+      responses:
+        '200': { description: Preview / dipindahkan }
+        '400': { description: Rombel/siswa tidak valid }
+  /siswa/import:
+    post:
+      tags: [master]
+      summary: Import xlsx (header NISN,Nama,Rombel,JK,TglLahir, maks 5MB, lapor per baris)
+      responses:
+        '201': { description: Dibuat/diperbarui + daftar gagal }
+  /guru:
+    get:
+      tags: [master]
+      summary: List guru + akun + mapel (ADMIN, KEPSEK)
+      responses: { '200': { description: OK } }
+    post:
+      tags: [master]
+      summary: Tambah guru + akun login + mapel (1 transaksi)
+      responses:
+        '201': { description: Tersimpan }
+        '409': { description: NIP/email duplikat }
+  /guru/{id}/mapel:
+    put:
+      tags: [master]
+      summary: Ganti total mapel yang diampu
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses: { '200': { description: OK } }
+  /mapel:
+    get:
+      tags: [master]
+      summary: List mapel (semua role login, untuk dropdown)
+      responses: { '200': { description: OK } }
+    post:
+      tags: [master]
+      summary: Tambah mapel (SUPER_ADMIN)
+      responses: { '201': { description: Tersimpan } }
+  /siswa:
+    get:
+      tags: [master]
+      summary: List siswa (scope role, NISN dimask, filter rombelId+q)
+      parameters:
+        - { name: rombelId, in: query, schema: { type: string, format: uuid } }
+        - { name: q, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, default: 30 } }
+      responses: { '200': { description: OK } }
+    post:
+      tags: [master]
+      summary: Tambah siswa (SUPER_ADMIN, NISN 10 digit unik)
+      responses:
+        '201': { description: Tersimpan }
+        '409': { description: NISN duplikat }
+  /jadwal:
+    get:
+      tags: [master]
+      summary: List jadwal (filter rombelId+guruId+hari)
+      responses: { '200': { description: OK } }
+    post:
+      tags: [master]
+      summary: Tambah jadwal (SUPER_ADMIN, tolak 409 + detail bila bentrok)
+      responses:
+        '201': { description: Tersimpan }
+        '409': { description: Bentrok guru/rombel }
   /jadwal-saya:
     get:
       tags: [akademik]
@@ -76,6 +160,20 @@ paths:
       parameters:
         - { name: hari, in: query, schema: { type: string, enum: [SENIN, SELASA, RABU, KAMIS, JUMAT, SABTU] } }
       responses: { '200': { description: OK } }
+  /absensi:
+    get:
+      tags: [akademik]
+      summary: List absensi (filter rombelId+mapelId+tanggal+status)
+      responses: { '200': { description: OK } }
+  /absensi/{id}:
+    patch:
+      tags: [akademik]
+      summary: Ubah status hari-H (lewat hari itu hanya SUPER_ADMIN + audit)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Terupdate }
+        '403': { description: Bukan hari yang sama }
   /absensi/bulk:
     post:
       tags: [akademik]
@@ -113,7 +211,7 @@ paths:
   /absensi-guru/masuk:
     post:
       tags: [akademik]
-      summary: Presensi masuk via wajah
+      summary: Presensi masuk via wajah (liveness + skor + geofence dicek server)
       requestBody:
         required: true
         content:
@@ -126,17 +224,103 @@ paths:
                 liveness: { type: boolean }
                 lat: { type: number }
                 lng: { type: number }
+      responses:
+        '201': { description: Tercatat }
+        '401': { description: Liveness/skor gagal }
+        '409': { description: Sudah presensi hari ini }
+  /absensi-guru/pulang:
+    post:
+      tags: [akademik]
+      summary: Presensi pulang (update baris hari ini)
       responses: { '201': { description: Tercatat } }
+  /absensi-guru/fallback:
+    post:
+      tags: [akademik]
+      summary: Presensi manual + alasan (PENDING, perlu verifikasi admin)
+      responses: { '201': { description: PENDING } }
+  /absensi-guru/rekap:
+    get:
+      tags: [akademik]
+      summary: Rekap + keterlambatan vs SEKOLAH_JAM_MASUK (ADMIN, KEPSEK)
+      responses: { '200': { description: OK } }
+  /perizinan:
+    get:
+      tags: [akademik]
+      summary: List perizinan (filter status+siswaId)
+      responses: { '200': { description: OK } }
+    post:
+      tags: [akademik]
+      summary: Ajukan izin/sakit (maks 30 hari per pengajuan)
+      responses: { '201': { description: DIAJUKAN } }
+  /perizinan/{id}/putuskan:
+    post:
+      tags: [akademik]
+      summary: Setujui/tolak (wali binaan/admin). Setuju -> auto absensi + audit
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Diputuskan }
+        '403': { description: Bukan wali kelas ybs }
+  /pengumuman:
+    get:
+      tags: [akademik]
+      summary: List pengumuman (filter role+rombelId). Terbit otomatis push ke device target
+      responses: { '200': { description: OK } }
+    post:
+      tags: [akademik]
+      summary: Tulis pengumuman (SUPER_ADMIN)
+      responses: { '201': { description: Tersimpan } }
+  /pelanggaran:
+    get:
+      tags: [akademik]
+      summary: List kasus (terbatas BK/wali binaan/admin)
+      responses: { '200': { description: OK } }
+    post:
+      tags: [akademik]
+      summary: Catat pelanggaran + poin (BK/wali binaan/admin)
+      responses: { '201': { description: Tersimpan } }
+  /pelanggaran/total:
+    get:
+      tags: [akademik]
+      summary: Total poin 1 siswa (?siswaId=)
+      responses: { '200': { description: OK } }
+  /notifikasi:
+    get:
+      tags: [akademik]
+      summary: Log pengiriman push (SUPER_ADMIN)
+      responses: { '200': { description: OK } }
+  /rapor/{siswaId}:
+    get:
+      tags: [akademik]
+      summary: Rekap rapor per semester (?semester=&tahunAjaranId=)
+      parameters:
+        - { name: siswaId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses: { '200': { description: OK } }
+  /reports/absensi.xlsx:
+    get:
+      tags: [akademik]
+      summary: Export rekap absensi (ADMIN, KEPSEK, WALI)
+      responses: { '200': { description: File xlsx } }
+  /reports/nilai.xlsx:
+    get:
+      tags: [akademik]
+      summary: Export rekap nilai (ADMIN, KEPSEK, WALI)
+      responses: { '200': { description: File xlsx } }
+  /dashboard/ringkasan:
+    get:
+      tags: [akademik]
+      summary: Ringkasan kepsek/admin (ADMIN, KEPSEK)
+      responses: { '200': { description: OK } }
+  /nilai:
+    get:
+      tags: [akademik]
+      summary: List nilai (filter rombelId+mapelId+semester+jenis)
+      responses: { '200': { description: OK } }
   /nilai/bulk:
     post:
       tags: [akademik]
       summary: Input nilai bulk per mapel
       responses: { '201': { description: Tersimpan } }
-  /dashboard/ringkasan:
-    get:
-      tags: [akademik]
-      summary: Ringkasan kepsek/admin
-      responses: { '200': { description: OK } }
 components:
   securitySchemes:
     bearerAuth:

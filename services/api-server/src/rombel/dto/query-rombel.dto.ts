@@ -1,4 +1,4 @@
-import { IsOptional, IsUUID } from 'class-validator';
+import { IsDateString, IsOptional, IsUUID } from 'class-validator';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
 export class QueryRombelDto extends PaginationQueryDto {
@@ -10,4 +10,11 @@ export class QueryRombelDto extends PaginationQueryDto {
   @IsOptional()
   @IsUUID()
   tingkatId?: string;
+}
+
+export class QueryRombelSiswaDto {
+  /** YYYY-MM-DD — bila diisi, sertakan status absensi tiap siswa hari itu. */
+  @IsOptional()
+  @IsDateString()
+  tanggal?: string;
 }

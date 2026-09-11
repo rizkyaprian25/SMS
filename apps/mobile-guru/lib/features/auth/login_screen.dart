@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../app.dart';
+import '../../core/auth/session.dart';
 
-final _tokenProvider = StateProvider<String?>((_) => null);
-
+/// Login akun guru. Sukses -> /jadwal. Sudah login -> langsung /jadwal.
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -15,42 +14,55 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final email = TextEditingController(text: 'guru@sekolah.sch.id');
   final password = TextEditingController();
-  String status = '';
 
-  Future<void> submit() async {
-    setState(() => status = 'Memuat…');
-    try {
-      final res = await getApi().post('/auth/login', body: {
-        'email': email.text,
-        'password': password.text,
-      });
-      final token = res.data['data']?['accessToken'] as String?;
-      ref.read(_tokenProvider.notifier).state = token;
-      getApi().setToken(token);
-      // TODO: simpan refresh di flutter_secure_storage + PUT /devices/token (FCM).
-      if (!mounted) return;
-      context.go('/jadwal');
-    } catch (_) {
-      setState(() => status = 'Login gagal. Cek backend & akun.');
-    }
+  @override
+  void dispose() {
+    email.dispose();
+    password.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final sesi = ref.watch(sessionProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Masuk — Guru')),
       body: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            TextField(controller: email, decoration: const InputDecoration(labelText: 'Email')),
-            TextField(controller: password, obscureText: true, decoration: const InputDecoration(labelText: 'Password')),
-            const SizedBox(height: 12),
-            FilledButton(onPressed: submit, child: const Text('Masuk')),
-            Text(status),
-          ],
+        child: sesi.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => _form('Gagal: $e'),
+          data: (d) {
+            if (d.sudahMasuk) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (context.mounted) context.go('/jadwal');
+              });
+              return const Center(child: CircularProgressIndicator());
+            }
+            return _form(null);
+          },
         ),
       ),
+    );
+  }
+
+  Widget _form(String? info) {
+    return Column(
+      children: [
+        TextField(controller: email, decoration: const InputDecoration(labelText: 'Email')),
+        TextField(
+          controller: password,
+          obscureText: true,
+          decoration: const InputDecoration(labelText: 'Password'),
+        ),
+        const SizedBox(height: 12),
+        FilledButton(
+          onPressed: () =>
+              ref.read(sessionProvider.notifier).login(email.text, password.text),
+          child: const Text('Masuk'),
+        ),
+        if (info != null) Text(info),
+      ],
     );
   }
 }
