@@ -14,3 +14,18 @@ export class CreateTahunAjaranDto {
   @IsDateString()
   tglSelesai!: string;
 }
+
+export class UpdateTahunAjaranDto {
+  @IsEnum(Semester)
+  semesterAktif?: Semester;
+
+  @IsString()
+  nama?: string;
+
+  @IsDateString()
+  tglMulai?: string;
+
+  @IsDateString()
+  tglSelesai?: string;
+}
+

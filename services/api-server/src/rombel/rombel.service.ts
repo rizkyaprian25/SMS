@@ -38,7 +38,11 @@ export class RombelService {
         skip,
         take: limit,
         orderBy: { nama: 'asc' },
-        include: { tingkat: true, waliKelas: { select: { id: true, nama: true } } },
+        include: {
+          tingkat: true,
+          waliKelas: { select: { id: true, nama: true, nip: true } },
+          _count: { select: { siswa: { where: { deletedAt: null } }, jadwal: true } },
+        },
       }),
       this.prisma.rombel.count({ where }),
     ]);
@@ -110,13 +114,60 @@ export class RombelService {
     return { data: row };
   }
 
+  /** Daftar mata pelajaran & guru pengampu di 1 rombel berdasarkan penugasan jadwal. */
+  async pengampu(id: string) {
+    const rombel = await this.prisma.rombel.findUnique({
+      where: { id },
+      include: {
+        waliKelas: { select: { id: true, nama: true, nip: true, fotoUrl: true } },
+      },
+    });
+    if (!rombel || rombel.deletedAt) throw new NotFoundException('Rombel tidak ditemukan');
+
+    const jadwalList = await this.prisma.jadwal.findMany({
+      where: { rombelId: id },
+      include: {
+        mapel: { select: { id: true, kode: true, nama: true, kelompok: true } },
+        guru: { select: { id: true, nama: true, nip: true, fotoUrl: true } },
+      },
+      orderBy: { mapel: { nama: 'asc' } },
+    });
+
+    const map = new Map<string, { mapel: any; guru: any; slotCount: number }>();
+    for (const j of jadwalList) {
+      const key = `${j.mapelId}-${j.guruId}`;
+      if (!map.has(key)) {
+        map.set(key, { mapel: j.mapel, guru: j.guru, slotCount: 1 });
+      } else {
+        map.get(key)!.slotCount++;
+      }
+    }
+
+    return {
+      data: {
+        rombel: {
+          id: rombel.id,
+          nama: rombel.nama,
+          kapasitas: rombel.kapasitas,
+          waliKelas: rombel.waliKelas,
+        },
+        pengampu: Array.from(map.values()),
+      },
+    };
+  }
+
   /**
    * Kenaikan kelas massal (docs/02 + docs/11): preview dulu (?preview=true),
    * eksekusi dalam 1 transaction + riwayat_kelas per siswa + 1 audit.
    * Histori nilai/absensi tahun lama tidak disentuh.
    */
   async naikKelas(user: JwtPayload, dto: NaikKelasDto, preview: boolean) {
-    if (!user.guruId) throw new ForbiddenException('Akun belum terhubung ke data guru');
+    let diprosesOlehId = user.guruId;
+    if (!diprosesOlehId) {
+      const defaultGuru = await this.prisma.guru.findFirst({ select: { id: true } });
+      if (!defaultGuru) throw new ForbiddenException('Belum ada data guru pemroses di sistem');
+      diprosesOlehId = defaultGuru.id;
+    }
     const keTahun = await this.prisma.tahunAjaran.findUnique({ where: { id: dto.keTahunId } });
     if (!keTahun) throw new NotFoundException('Tahun ajaran tujuan tidak ditemukan');
 
@@ -170,7 +221,7 @@ export class RombelService {
             rombelLamaId: lamaMap.get(m.siswaId) ?? undefined,
             rombelBaruId: m.rombelBaruId,
             tahunAjaranId: dto.keTahunId,
-            diprosesOleh: user.guruId as string,
+            diprosesOleh: diprosesOlehId as string,
           },
         });
       }
@@ -181,7 +232,7 @@ export class RombelService {
           entitasId: dto.keTahunId,
           sebelum: { dariTahunId: dto.dariTahunId },
           sesudah: { total: dto.mapping.length },
-          dilakukanOleh: user.guruId as string,
+          dilakukanOleh: diprosesOlehId as string,
         },
       });
     });

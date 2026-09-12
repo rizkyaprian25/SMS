@@ -23,13 +23,48 @@ export default function PerizinanPage() {
   const qc = useQueryClient();
   const [status, setStatus] = useState('DIAJUKAN');
 
-  // Modal konfirmasi putusan
   const [targetIzin, setTargetIzin] = useState<{
     id: string;
     namaSiswa: string;
     jenis: string;
     putusan: 'SETUJU' | 'TOLAK';
   } | null>(null);
+
+  // Modal Ajukan Izin Baru
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newSiswaId, setNewSiswaId] = useState('');
+  const [newTglMulai, setNewTglMulai] = useState(new Date().toISOString().slice(0, 10));
+  const [newTglSelesai, setNewTglSelesai] = useState(new Date().toISOString().slice(0, 10));
+  const [newJenis, setNewJenis] = useState<'IZIN' | 'SAKIT'>('IZIN');
+  const [newAlasan, setNewAlasan] = useState('');
+  const [addError, setAddError] = useState('');
+
+  // Fetch daftar siswa untuk dropdown pengajuan
+  const { data: siswaDropdownData } = useQuery<{ data: Array<{ id: string; nama: string; nisn: string; rombel?: { nama: string } }> }>({
+    queryKey: ['siswa-dropdown-perizinan'],
+    queryFn: async () => (await api.get('/siswa', { params: { limit: 100 } })).data,
+    retry: false,
+  });
+
+  const ajukanMutasi = useMutation({
+    mutationFn: async (payload: {
+      siswaId: string;
+      tglMulai: string;
+      tglSelesai: string;
+      jenis: 'IZIN' | 'SAKIT';
+      alasan: string;
+    }) => (await api.post('/perizinan', payload)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['perizinan'] });
+      qc.invalidateQueries({ queryKey: ['perizinan-all-stats'] });
+      setShowAddModal(false);
+      setNewAlasan('');
+      setAddError('');
+    },
+    onError: (err) => {
+      setAddError(pesanError(err));
+    },
+  });
 
   const q = useQuery<{ data: Izin[] }>({
     queryKey: qk.perizinan(status),
@@ -51,6 +86,7 @@ export default function PerizinanPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['perizinan'] });
       qc.invalidateQueries({ queryKey: ['perizinan-all-stats'] });
+      qc.invalidateQueries({ queryKey: ['absensi'] });
       setTargetIzin(null);
     },
   });
@@ -90,14 +126,31 @@ export default function PerizinanPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       {/* Header */}
-      <div>
-        <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
-          Persetujuan Perizinan Siswa
-        </h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: 4, margin: 0 }}>
-          Verifikasi pengajuan surat izin &amp; sakit dari orang tua siswa. Izin disetujui akan otomatis
-          tercatat pada data absensi harian siswa.
-        </p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 14 }}>
+        <div>
+          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+            Persetujuan Perizinan Siswa
+          </h1>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: 4, margin: 0 }}>
+            Verifikasi pengajuan surat izin &amp; sakit dari orang tua siswa. Izin disetujui akan otomatis
+            tercatat pada data absensi harian siswa.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%)', border: 'none', gap: 6, fontWeight: 600 }}
+          onClick={() => {
+            setAddError('');
+            setShowAddModal(true);
+          }}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          + Ajukan Izin / Sakit Siswa
+        </button>
       </div>
 
       {/* Stat Cards */}
@@ -407,6 +460,161 @@ export default function PerizinanPage() {
               </button>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {/* Modal Ajukan Surat Izin / Sakit Baru */}
+      {showAddModal && (
+        <Modal
+          title="📝 Formulir Pengajuan Surat Izin / Sakit Siswa"
+          onClose={() => setShowAddModal(false)}
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setAddError('');
+              if (!newSiswaId) {
+                setAddError('Silakan pilih siswa terlebih dahulu.');
+                return;
+              }
+              if (!newAlasan.trim()) {
+                setAddError('Alasan / keterangan izin wajib diisi.');
+                return;
+              }
+              ajukanMutasi.mutate({
+                siswaId: newSiswaId,
+                tglMulai: newTglMulai,
+                tglSelesai: newTglSelesai,
+                jenis: newJenis,
+                alasan: newAlasan.trim(),
+              });
+            }}
+            style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
+          >
+            {addError && (
+              <div className="alert alert-danger" style={{ fontSize: 13, padding: '8px 12px' }}>
+                {addError}
+              </div>
+            )}
+
+            <div className="form-group">
+              <label className="form-label" style={{ fontWeight: 700 }}>
+                Pilih Peserta Didik
+              </label>
+              <select
+                className="input"
+                required
+                value={newSiswaId}
+                onChange={(e) => setNewSiswaId(e.target.value)}
+              >
+                <option value="">-- Pilih Siswa --</option>
+                {(siswaDropdownData?.data ?? []).map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nama} ({s.rombel?.nama ? `Kelas ${s.rombel.nama}` : 'Tanpa Rombel'}) — NISN: {s.nisn}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div className="form-group">
+                <label className="form-label" style={{ fontWeight: 700 }}>
+                  Tanggal Mulai
+                </label>
+                <input
+                  type="date"
+                  className="input"
+                  required
+                  value={newTglMulai}
+                  onChange={(e) => setNewTglMulai(e.target.value)}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" style={{ fontWeight: 700 }}>
+                  Tanggal Selesai
+                </label>
+                <input
+                  type="date"
+                  className="input"
+                  required
+                  value={newTglSelesai}
+                  onChange={(e) => setNewTglSelesai(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" style={{ fontWeight: 700 }}>
+                Jenis Keterangan
+              </label>
+              <div style={{ display: 'flex', gap: 16 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13 }}>
+                  <input
+                    type="radio"
+                    name="jenisIzin"
+                    checked={newJenis === 'IZIN'}
+                    onChange={() => setNewJenis('IZIN')}
+                  />
+                  <span>Surat Izin Keperluan Keluarga / Dispensasi</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13 }}>
+                  <input
+                    type="radio"
+                    name="jenisIzin"
+                    checked={newJenis === 'SAKIT'}
+                    onChange={() => setNewJenis('SAKIT')}
+                  />
+                  <span>Surat Keterangan Sakit (Dokter/Klinik)</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" style={{ fontWeight: 700 }}>
+                Alasan / Uraian Izin
+              </label>
+              <textarea
+                className="input"
+                rows={3}
+                required
+                value={newAlasan}
+                onChange={(e) => setNewAlasan(e.target.value)}
+                placeholder="Contoh: Mengikuti acara keluarga di luar kota / Sakit demam berdarah opname..."
+              />
+            </div>
+
+            <div
+              style={{
+                padding: '10px 14px',
+                borderRadius: 6,
+                background: 'var(--bg-subtle)',
+                border: '1px solid var(--border)',
+                fontSize: 12,
+                color: 'var(--text-subtle)',
+              }}
+            >
+              ⚡ <b>Otomasi Presensi:</b> Setelah izin ini diverifikasi dan disetujui, sistem presensi harian otomatis mencatat status <b>{newJenis}</b> pada seluruh jam mata pelajaran siswa di rentang tanggal tersebut.
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={ajukanMutasi.isPending}
+                onClick={() => setShowAddModal(false)}
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={ajukanMutasi.isPending}
+              >
+                {ajukanMutasi.isPending ? 'Mengirim Pengajuan…' : 'Kirim Pengajuan Izin'}
+              </button>
+            </div>
+          </form>
         </Modal>
       )}
     </div>

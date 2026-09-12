@@ -83,14 +83,58 @@ export class SiswaService {
   async detail(id: string, user: JwtPayload) {
     const row = await this.prisma.siswa.findUnique({
       where: { id },
-      include: { rombel: { select: { id: true, nama: true } } },
+      include: {
+        rombel: {
+          select: {
+            id: true,
+            nama: true,
+            kapasitas: true,
+            waliKelas: { select: { id: true, nama: true, nip: true, fotoUrl: true } },
+            jadwal: {
+              select: {
+                mapel: { select: { id: true, kode: true, nama: true, kelompok: true } },
+                guru: { select: { id: true, nama: true, nip: true, fotoUrl: true } },
+              },
+              orderBy: { mapel: { nama: 'asc' } },
+            },
+          },
+        },
+      },
     });
     if (!row || row.deletedAt) throw new NotFoundException('Siswa tidak ditemukan');
     const allowed = await this.rombelDiizinkan(user);
     if (allowed && (!row.rombelId || !allowed.includes(row.rombelId))) {
       throw new ForbiddenException('Di luar kelas yang Anda ampu');
     }
-    return { data: row };
+
+    let guruPengajar: Array<{ mapel: any; guru: any; slotCount: number }> = [];
+    if (row.rombel?.jadwal) {
+      const map = new Map<string, { mapel: any; guru: any; slotCount: number }>();
+      for (const j of row.rombel.jadwal) {
+        const key = `${j.mapel.id}-${j.guru.id}`;
+        if (!map.has(key)) {
+          map.set(key, { mapel: j.mapel, guru: j.guru, slotCount: 1 });
+        } else {
+          map.get(key)!.slotCount++;
+        }
+      }
+      guruPengajar = Array.from(map.values());
+    }
+
+    return {
+      data: {
+        ...row,
+        rombel: row.rombel
+          ? {
+              id: row.rombel.id,
+              nama: row.rombel.nama,
+              kapasitas: (row.rombel as any).kapasitas,
+              waliKelas: row.rombel.waliKelas,
+              guruPengajar,
+            }
+          : null,
+      },
+    };
   }
 
   async create(dto: CreateSiswaDto) {

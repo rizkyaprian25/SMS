@@ -46,11 +46,43 @@ export class GuruService {
           isAktif: true,
           pengguna: { select: { email: true, role: true } },
           mapelDiampu: { include: { mapel: { select: { id: true, nama: true } } } },
+          waliUntuk: { select: { id: true, nama: true }, where: { deletedAt: null } },
+          jadwal: {
+            select: {
+              rombel: { select: { id: true, nama: true } },
+              mapel: { select: { id: true, kode: true, nama: true } },
+            },
+          },
         },
       }),
       this.prisma.guru.count({ where }),
     ]);
-    return { data: rows, meta: pageMeta(total, page, limit) };
+
+    const rowsFormatted = rows.map((g) => {
+      const rombelMap = new Map<string, { id: string; nama: string; mapels: string[] }>();
+      for (const j of g.jadwal || []) {
+        if (!j.rombel) continue;
+        if (!rombelMap.has(j.rombel.id)) {
+          rombelMap.set(j.rombel.id, { id: j.rombel.id, nama: j.rombel.nama, mapels: [j.mapel.nama] });
+        } else {
+          const item = rombelMap.get(j.rombel.id)!;
+          if (!item.mapels.includes(j.mapel.nama)) item.mapels.push(j.mapel.nama);
+        }
+      }
+      return {
+        id: g.id,
+        nip: g.nip,
+        nama: g.nama,
+        fotoUrl: g.fotoUrl,
+        isAktif: g.isAktif,
+        pengguna: g.pengguna,
+        mapelDiampu: g.mapelDiampu,
+        waliUntuk: g.waliUntuk,
+        rombelDiampu: Array.from(rombelMap.values()).sort((a, b) => a.nama.localeCompare(b.nama)),
+      };
+    });
+
+    return { data: rowsFormatted, meta: pageMeta(total, page, limit) };
   }
 
   async detail(id: string) {
@@ -61,11 +93,34 @@ export class GuruService {
       include: {
         pengguna: { select: { email: true, role: true } },
         mapelDiampu: { include: { mapel: true } },
-        waliUntuk: { select: { id: true, nama: true } },
+        waliUntuk: { select: { id: true, nama: true }, where: { deletedAt: null } },
+        jadwal: {
+          include: {
+            rombel: { select: { id: true, nama: true } },
+            mapel: { select: { id: true, kode: true, nama: true } },
+          },
+        },
       },
     });
     if (!row || row.deletedAt) throw new NotFoundException('Guru tidak ditemukan');
-    return { data: row };
+
+    const rombelMap = new Map<string, { id: string; nama: string; mapels: string[] }>();
+    for (const j of row.jadwal || []) {
+      if (!j.rombel) continue;
+      if (!rombelMap.has(j.rombel.id)) {
+        rombelMap.set(j.rombel.id, { id: j.rombel.id, nama: j.rombel.nama, mapels: [j.mapel.nama] });
+      } else {
+        const item = rombelMap.get(j.rombel.id)!;
+        if (!item.mapels.includes(j.mapel.nama)) item.mapels.push(j.mapel.nama);
+      }
+    }
+
+    return {
+      data: {
+        ...row,
+        rombelDiampu: Array.from(rombelMap.values()).sort((a, b) => a.nama.localeCompare(b.nama)),
+      },
+    };
   }
 
   async create(dto: CreateGuruDto) {

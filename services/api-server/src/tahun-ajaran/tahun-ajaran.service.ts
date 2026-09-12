@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateTahunAjaranDto } from './dto/tahun-ajaran.dto';
+import { CreateTahunAjaranDto, UpdateTahunAjaranDto } from './dto/tahun-ajaran.dto';
+import type { JwtPayload } from '../common/decorators/current-user.decorator';
 
 /** Kecil: list untuk dropdown, create, aktifkan (hanya 1 aktif). */
 @Injectable()
@@ -40,4 +41,35 @@ export class TahunAjaranService {
     });
     return { data: { id } };
   }
+
+  async update(id: string, dto: UpdateTahunAjaranDto, user?: JwtPayload) {
+    const existing = await this.prisma.tahunAjaran.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Tahun ajaran tidak ditemukan');
+
+    const row = await this.prisma.tahunAjaran.update({
+      where: { id },
+      data: {
+        ...(dto.nama ? { nama: dto.nama } : {}),
+        ...(dto.semesterAktif ? { semesterAktif: dto.semesterAktif } : {}),
+        ...(dto.tglMulai ? { tglMulai: new Date(dto.tglMulai) } : {}),
+        ...(dto.tglSelesai ? { tglSelesai: new Date(dto.tglSelesai) } : {}),
+      },
+    });
+
+    if (user?.sub) {
+      await this.prisma.auditLog.create({
+        data: {
+          aksi: 'UPDATE_TAHUN_AJARAN',
+          entitas: 'tahun_ajaran',
+          entitasId: id,
+          sebelum: { semesterAktif: existing.semesterAktif, nama: existing.nama },
+          sesudah: { semesterAktif: row.semesterAktif, nama: row.nama },
+          dilakukanOleh: user.sub,
+        },
+      });
+    }
+
+    return { data: row };
+  }
 }
+

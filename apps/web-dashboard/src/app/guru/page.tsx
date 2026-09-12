@@ -25,6 +25,8 @@ interface Guru {
   nama: string;
   pengguna: { email: string; role: string } | null;
   mapelDiampu: { mapel: { id: string; nama: string } }[];
+  rombelDiampu?: Array<{ id: string; nama: string; mapels: string[] }>;
+  waliUntuk?: Array<{ id: string; nama: string }>;
 }
 
 export default function GuruPage() {
@@ -236,6 +238,7 @@ export default function GuruPage() {
                 <th>NIP</th>
                 <th>Email Akun</th>
                 <th>Mapel yang Diampu</th>
+                <th>Kelas yang Diajar (SK)</th>
                 <th style={{ textAlign: 'right' }}>Aksi</th>
               </tr>
             </thead>
@@ -280,6 +283,44 @@ export default function GuruPage() {
                       ) : (
                         <span style={{ color: 'var(--text-subtle)', fontSize: 12 }}>Belum diatur</span>
                       )}
+                    </div>
+                  </td>
+                  <td>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 280 }}>
+                      {g.waliUntuk && g.waliUntuk.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                          {g.waliUntuk.map((w) => (
+                            <Badge key={w.id} variant="success" style={{ fontSize: 11 }}>
+                              ★ Wali {w.nama}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {g.rombelDiampu && g.rombelDiampu.length > 0 ? (
+                          g.rombelDiampu.map((r) => (
+                            <span
+                              key={r.id}
+                              title={`Mengajar ${r.mapels.join(', ')} di kelas ${r.nama}`}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                padding: '2px 6px',
+                                borderRadius: 4,
+                                fontSize: 11,
+                                fontWeight: 600,
+                                background: 'var(--bg-subtle)',
+                                border: '1px solid var(--border)',
+                                color: 'var(--text-main)',
+                              }}
+                            >
+                              {r.nama}
+                            </span>
+                          ))
+                        ) : (
+                          <span style={{ color: 'var(--text-subtle)', fontSize: 12 }}>-</span>
+                        )}
+                      </div>
                     </div>
                   </td>
                   <td style={{ textAlign: 'right' }}>

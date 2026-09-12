@@ -23,6 +23,8 @@ import { TahunAjaranModule } from './tahun-ajaran/tahun-ajaran.module';
 import { TugasModule } from './tugas/tugas.module';
 import { PercakapanModule } from './percakapan/percakapan.module';
 import { OrtuModule } from './ortu/ortu.module';
+import { PenggunaModule } from './pengguna/pengguna.module';
+import { AuditLogModule } from './audit-log/audit-log.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -55,6 +57,8 @@ import { HealthController } from './health.controller';
     TugasModule,
     PercakapanModule,
     OrtuModule,
+    PenggunaModule,
+    AuditLogModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

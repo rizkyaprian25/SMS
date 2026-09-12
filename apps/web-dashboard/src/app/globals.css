@@ -980,6 +980,8 @@ code, kbd, samp, pre {
     display: none !important;
   }
 
+  /* Updated timestamp to trigger stylesheet recompilation: 2026-09-12 */
+
   body, .app-shell, .main-content, .page-container {
     background: #ffffff !important;
     padding: 0 !important;
@@ -995,7 +997,22 @@ code, kbd, samp, pre {
     color: #000000 !important;
     border-color: #cccccc !important;
   }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
 }
+
+@media screen {
+  .print-only {
+    display: none !important;
+  }
+}
+
 
 /* Animations */
 @keyframes spin {

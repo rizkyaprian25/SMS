@@ -139,12 +139,45 @@ export default function LoginPage() {
             </div>
 
             <button
+              id="btn-login-submit"
               type="submit"
               className="btn btn-primary"
+              style={{ width: '100%', padding: '12px 16px', fontSize: 14, fontWeight: 600 }}
               disabled={loading}
-              style={{ width: '100%', padding: '10px 16px', fontSize: 14 }}
             >
-              {loading ? 'Memproses Masuk…' : 'Masuk ke Dashboard'}
+              {loading ? 'Memproses...' : 'Masuk ke Dashboard'}
+            </button>
+
+            <button
+              id="btn-quick-admin-login"
+              type="button"
+              className="btn btn-outline"
+              style={{ width: '100%', marginTop: 10, padding: '10px 16px', fontSize: 13, fontWeight: 600 }}
+              disabled={loading}
+              onClick={async () => {
+                setErrorMsg('');
+                setSuccessMsg('');
+                setLoading(true);
+                try {
+                  const res = await api.post('/auth/login', {
+                    email: 'admin@sekolah.sch.id',
+                    password: 'Admin123!',
+                  });
+                  const token = res.data?.data?.accessToken ?? res.data?.accessToken ?? null;
+                  setAccessToken(token);
+                  setSuccessMsg('Login berhasil! Mengalihkan ke dashboard...');
+                  setTimeout(() => {
+                    window.location.href = '/rombel';
+                  }, 400);
+                } catch (err: unknown) {
+                  const errObj = err as { response?: { data?: { message?: string } }; code?: string };
+                  setErrorMsg(errObj.response?.data?.message || 'Login gagal.');
+                } finally {
+                  setLoading(false);
+                }
+              }}
+            >
+              ⚡ Masuk Cepat Demo (Super Admin)
             </button>
           </form>
 

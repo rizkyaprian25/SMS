@@ -38,6 +38,34 @@ function SiswaInner() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editSiswa, setEditSiswa] = useState<SiswaItem | null>(null);
   const [arsipTarget, setArsipTarget] = useState<SiswaItem | null>(null);
+  const [detailSiswaId, setDetailSiswaId] = useState<string | null>(null);
+  const [activeDetailTab, setActiveDetailTab] = useState<'biodata' | 'guru'>('biodata');
+
+  // Fetch detail lengkap siswa (termasuk Wali Kelas & Guru Pengajar per Mapel)
+  const { data: detailData, isPending: isDetailPending } = useQuery<{
+    data: {
+      id: string;
+      nama: string;
+      nisn: string;
+      jenisKelamin?: string | null;
+      isAktif?: boolean;
+      rombel?: {
+        id: string;
+        nama: string;
+        kapasitas?: number;
+        waliKelas?: { id: string; nama: string; nip?: string } | null;
+        guruPengajar?: Array<{
+          mapel: { id: string; kode: string; nama: string; kelompok?: string };
+          guru: { id: string; nama: string; nip: string; fotoUrl?: string };
+          slotCount?: number;
+        }>;
+      } | null;
+    };
+  }>({
+    queryKey: ['siswa-detail', detailSiswaId],
+    queryFn: async () => (await api.get(`/siswa/${detailSiswaId}`)).data,
+    enabled: !!detailSiswaId,
+  });
 
   // Form states for Add
   const [addNisn, setAddNisn] = useState('');
@@ -437,6 +465,18 @@ function SiswaInner() {
                       <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
                         <button
                           type="button"
+                          className="btn btn-primary btn-sm"
+                          style={{ padding: '4px 8px', fontSize: 12 }}
+                          onClick={() => {
+                            setDetailSiswaId(s.id);
+                            setActiveDetailTab('biodata');
+                          }}
+                          title="Lihat Profil & Guru Pengajar"
+                        >
+                          Detail
+                        </button>
+                        <button
+                          type="button"
                           className="btn btn-secondary btn-sm"
                           style={{ padding: '4px 8px', fontSize: 12 }}
                           onClick={() => bukaModalEdit(s)}
@@ -720,6 +760,197 @@ function SiswaInner() {
         title="Import Data Siswa dari Excel"
       >
         <ImportSiswa />
+      </Modal>
+
+      {/* Modal Detail Siswa & Guru Pengajar */}
+      <Modal
+        isOpen={!!detailSiswaId}
+        onClose={() => setDetailSiswaId(null)}
+        title={detailData?.data ? `Profil Siswa: ${detailData.data.nama}` : 'Detail Profil Siswa'}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {isDetailPending ? (
+            <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)' }}>
+              Memuat profil lengkap siswa…
+            </div>
+          ) : !detailData?.data ? (
+            <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
+              Data siswa tidak ditemukan atau terjadi kendala.
+            </div>
+          ) : (
+            <>
+              {/* Header Kartu Profil Singkat */}
+              <div
+                style={{
+                  padding: '12px 16px',
+                  borderRadius: 8,
+                  background: 'var(--bg-subtle)',
+                  border: '1px solid var(--border)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: '50%',
+                      background: 'var(--primary-light)',
+                      color: 'var(--primary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 800,
+                      fontSize: 16,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {detailData.data.nama.slice(0, 1).toUpperCase()}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-main)' }}>
+                      {detailData.data.nama}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                      NISN: <code>{detailData.data.nisn}</code> • Gender: {detailData.data.jenisKelamin === 'L' || detailData.data.jenisKelamin === 'LAKI_LAKI' ? 'Laki-laki' : 'Perempuan'}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--primary)' }}>
+                    Kelas {detailData.data.rombel?.nama ?? 'Belum Ditempatkan'}
+                  </div>
+                  <Badge variant={detailData.data.isAktif !== false ? 'success' : 'neutral'} style={{ marginTop: 4 }}>
+                    {detailData.data.isAktif !== false ? 'Siswa Aktif' : 'Non-Aktif'}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Tab Switcher */}
+              <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setActiveDetailTab('biodata')}
+                  style={{
+                    padding: '8px 14px',
+                    border: 'none',
+                    background: 'none',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    fontWeight: activeDetailTab === 'biodata' ? 700 : 500,
+                    color: activeDetailTab === 'biodata' ? 'var(--primary)' : 'var(--text-muted)',
+                    borderBottom: activeDetailTab === 'biodata' ? '2px solid var(--primary)' : '2px solid transparent',
+                  }}
+                >
+                  Informasi Kelas &amp; Wali
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveDetailTab('guru')}
+                  style={{
+                    padding: '8px 14px',
+                    border: 'none',
+                    background: 'none',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    fontWeight: activeDetailTab === 'guru' ? 700 : 500,
+                    color: activeDetailTab === 'guru' ? 'var(--primary)' : 'var(--text-muted)',
+                    borderBottom: activeDetailTab === 'guru' ? '2px solid var(--primary)' : '2px solid transparent',
+                  }}
+                >
+                  Guru Pengajar ({detailData.data.rombel?.guruPengajar?.length ?? 0} Mapel)
+                </button>
+              </div>
+
+              {/* Tab 1: Info Kelas & Wali */}
+              {activeDetailTab === 'biodata' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ padding: '12px 14px', borderRadius: 6, border: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                      Rombongan Belajar
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 600, marginTop: 2 }}>
+                      {detailData.data.rombel ? `Kelas ${detailData.data.rombel.nama} (Kapasitas: ${detailData.data.rombel.kapasitas} siswa)` : 'Belum dimasukkan ke rombel'}
+                    </div>
+                  </div>
+
+                  <div style={{ padding: '12px 14px', borderRadius: 6, border: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                      Wali Kelas
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--primary)', marginTop: 2 }}>
+                      {detailData.data.rombel?.waliKelas?.nama ?? 'Belum ditentukan'}
+                    </div>
+                    {detailData.data.rombel?.waliKelas?.nip && (
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                        NIP: {detailData.data.rombel.waliKelas.nip}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 2: Guru Pengajar Mapel di Kelas Siswa Ini */}
+              {activeDetailTab === 'guru' && (
+                <div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+                    Daftar guru yang mengajar mata pelajaran di kelas <strong>{detailData.data.rombel?.nama}</strong>:
+                  </div>
+
+                  {!detailData.data.rombel?.guruPengajar?.length ? (
+                    <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, background: 'var(--bg-subtle)', borderRadius: 6 }}>
+                      Belum ada penugasan guru pengajar untuk rombel ini.
+                    </div>
+                  ) : (
+                    <div style={{ maxHeight: 280, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6 }}>
+                      <table className="table" style={{ margin: 0, fontSize: 13 }}>
+                        <thead>
+                          <tr>
+                            <th>Mata Pelajaran</th>
+                            <th>Guru Pengampu</th>
+                            <th style={{ textAlign: 'center' }}>Beban</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {detailData.data.rombel.guruPengajar.map((gp) => (
+                            <tr key={`${gp.mapel.id}-${gp.guru.id}`}>
+                              <td>
+                                <div style={{ fontWeight: 600 }}>{gp.mapel.nama}</div>
+                                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Kode: {gp.mapel.kode}</div>
+                              </td>
+                              <td>
+                                <div style={{ fontWeight: 600, color: 'var(--primary)' }}>{gp.guru.nama}</div>
+                                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>NIP: {gp.guru.nip}</div>
+                              </td>
+                              <td style={{ textAlign: 'center' }}>
+                                <span className="badge badge-primary" style={{ fontSize: 11 }}>
+                                  {gp.slotCount ?? 1}x/mgg
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setDetailSiswaId(null)}
+                >
+                  Tutup
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </Modal>
     </div>
   );

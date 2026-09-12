@@ -58,6 +58,26 @@ export default function PelanggaranPage() {
   const [editTanggal, setEditTanggal] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<Kasus | null>(null);
 
+  // State untuk Surat Panggilan Orang Tua Resmi (SP 1, SP 2, SP 3)
+  const [suratTarget, setSuratTarget] = useState<{
+    siswa: SiswaItem;
+    totalPoin: number;
+    kasusList: Kasus[];
+    spLevel: 'SP 1' | 'SP 2' | 'SP 3';
+  } | null>(null);
+  const [nomorSurat, setNomorSurat] = useState('421.3 / 084 / SMP-BK / IX / 2026');
+  const [hariTanggalTemu, setHariTanggalTemu] = useState('Senin, 15 September 2026');
+  const [jamTemu, setJamTemu] = useState('09.00 WIB s/d selesai');
+  const [tempatTemu, setTempatTemu] = useState('Ruang Bimbingan & Konseling (BK) SMP Negeri');
+  const [menghadap, setMenghadap] = useState('Nika Musrifah, S.Pd (Guru BK) & Wali Kelas');
+
+  // Query seluruh data kasus untuk deteksi akumulasi poin (Threshold Monitoring)
+  const qAll = useQuery<{ data: Kasus[] }>({
+    queryKey: ['pelanggaran-all-monitoring'],
+    queryFn: async () => (await api.get('/pelanggaran', { params: { limit: 200 } })).data,
+    retry: false,
+  });
+
   // Query pencarian siswa untuk filter
   const siswaCari = useQuery<{ data: SiswaItem[] }>({
     queryKey: ['siswa-cari-bk', cariSiswaText],
@@ -164,6 +184,19 @@ export default function PelanggaranPage() {
     return { teks: 'Catatan Bersih', variant: 'success' as const };
   };
 
+  // Agregasi poin per siswa dari seluruh data kasus
+  const siswaPoinMap = new Map<string, { siswa: SiswaItem; totalPoin: number; kasusList: Kasus[] }>();
+  for (const k of qAll.data?.data ?? []) {
+    const sId = k.siswa.id;
+    const entry = siswaPoinMap.get(sId) ?? { siswa: k.siswa, totalPoin: 0, kasusList: [] as Kasus[] };
+    entry.totalPoin += k.poin;
+    entry.kasusList.push(k);
+    siswaPoinMap.set(sId, entry);
+  }
+  const siswaPerluPenanganan = Array.from(siswaPoinMap.values())
+    .filter((x) => x.totalPoin >= 25)
+    .sort((a, b) => b.totalPoin - a.totalPoin);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       {/* Header */}
@@ -197,6 +230,99 @@ export default function PelanggaranPage() {
           ✍️ Catat Kasus Baru
         </button>
       </div>
+
+      {/* BANNER MONITORING SISWA PERLU PENANGANAN KHUSUS (AMBANG BATAS BK) */}
+      {siswaPerluPenanganan.length > 0 && (
+        <div
+          className="card"
+          style={{
+            padding: '1.25rem 1.5rem',
+            border: '2px solid rgba(239, 68, 68, 0.3)',
+            background: 'linear-gradient(135deg, rgba(254, 242, 242, 0.8) 0%, rgba(255, 255, 255, 0.95) 100%)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: '1.5rem' }}>🚨</span>
+              <div>
+                <div style={{ fontWeight: 800, color: '#b91c1c', fontSize: '1rem' }}>
+                  Monitoring Kasus BK — Siswa Mencapai Ambang Batas Sanksi ({siswaPerluPenanganan.length} Siswa)
+                </div>
+                <div style={{ fontSize: '0.8125rem', color: '#7f1d1d' }}>
+                  Siswa dengan akumulasi poin ≥ 25 memerlukan penerbitan Surat Panggilan Orang Tua (SP 1, SP 2, atau SP 3).
+                </div>
+              </div>
+            </div>
+            <Badge variant="danger">{siswaPerluPenanganan.length} Perlu Tindakan</Badge>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
+            {siswaPerluPenanganan.map((item) => {
+              const spLevel: 'SP 1' | 'SP 2' | 'SP 3' =
+                item.totalPoin >= 75 ? 'SP 3' : item.totalPoin >= 50 ? 'SP 2' : 'SP 1';
+              return (
+                <div
+                  key={item.siswa.id}
+                  style={{
+                    padding: '12px 14px',
+                    borderRadius: 8,
+                    background: '#fff',
+                    border: '1px solid #fecaca',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: 13 }}>
+                        {item.siswa.nama}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        {item.siswa.rombel?.nama ? `Kelas ${item.siswa.rombel.nama}` : 'Tanpa Kelas'}{' '}
+                        {item.siswa.nisn ? `• NISN: ${item.siswa.nisn}` : ''}
+                      </div>
+                    </div>
+                    <Badge variant={spLevel === 'SP 3' ? 'danger' : 'warning'}>
+                      {spLevel} ({item.totalPoin} Poin)
+                    </Badge>
+                  </div>
+
+                  <div style={{ fontSize: 11, color: '#4b5563' }}>
+                    Tercatat <strong>{item.kasusList.length} kasus pelanggaran</strong> aktif.
+                  </div>
+
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    style={{
+                      width: '100%',
+                      fontSize: 11,
+                      gap: 6,
+                      color: '#b91c1c',
+                      borderColor: '#fca5a5',
+                      fontWeight: 600,
+                    }}
+                    onClick={() =>
+                      setSuratTarget({
+                        siswa: item.siswa,
+                        totalPoin: item.totalPoin,
+                        kasusList: item.kasusList,
+                        spLevel,
+                      })
+                    }
+                  >
+                    📨 Terbitkan Surat Panggilan ({spLevel})
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Filter & Pencarian Siswa */}
       <div className="card" style={{ padding: '1.25rem' }}>
@@ -458,6 +584,25 @@ export default function PelanggaranPage() {
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-sm"
+                          style={{ fontSize: 11, padding: '4px 8px', color: '#b45309', borderColor: '#fde68a', fontWeight: 600 }}
+                          onClick={() => {
+                            const entry = siswaPoinMap.get(k.siswa.id);
+                            const tot = entry?.totalPoin ?? k.poin;
+                            const spLevel: 'SP 1' | 'SP 2' | 'SP 3' = tot >= 75 ? 'SP 3' : tot >= 50 ? 'SP 2' : 'SP 1';
+                            setSuratTarget({
+                              siswa: k.siswa,
+                              totalPoin: tot,
+                              kasusList: entry?.kasusList || [k],
+                              spLevel,
+                            });
+                          }}
+                          title="Terbitkan Surat Panggilan Orang Tua"
+                        >
+                          📨 SP
+                        </button>
                         <button
                           type="button"
                           className="btn btn-secondary btn-sm"
@@ -807,6 +952,284 @@ export default function PelanggaranPage() {
               >
                 {hapusMutasi.isPending ? 'Menghapus...' : 'Ya, Hapus'}
               </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal Cetak Surat Panggilan Orang Tua Resmi (SP 1, SP 2, SP 3) */}
+      {suratTarget && (
+        <Modal
+          title={`📨 Cetak Surat Panggilan Orang Tua — ${suratTarget.siswa.nama} (${suratTarget.spLevel})`}
+          onClose={() => setSuratTarget(null)}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Form Pengaturan Surat (No-Print) */}
+            <div
+              className="no-print"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
+                padding: '12px 14px',
+                background: 'var(--bg-subtle)',
+                borderRadius: 8,
+                border: '1px solid var(--border)',
+              }}
+            >
+              <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-main)' }}>
+                ⚙️ Parameter Lembar Surat Kedinasan
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 2 }}>
+                    NOMOR SURAT RESMI
+                  </label>
+                  <input
+                    className="input"
+                    style={{ fontSize: 12 }}
+                    value={nomorSurat}
+                    onChange={(e) => setNomorSurat(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 2 }}>
+                    TINGKAT SURAT PANGGILAN
+                  </label>
+                  <select
+                    className="input"
+                    style={{ fontSize: 12 }}
+                    value={suratTarget.spLevel}
+                    onChange={(e) =>
+                      setSuratTarget({
+                        ...suratTarget,
+                        spLevel: e.target.value as 'SP 1' | 'SP 2' | 'SP 3',
+                      })
+                    }
+                  >
+                    <option value="SP 1">Surat Panggilan I (SP 1) — Peringatan Awal</option>
+                    <option value="SP 2">Surat Panggilan II (SP 2) — Peringatan Keras</option>
+                    <option value="SP 3">Surat Panggilan III (SP 3) — Skorsing &amp; Konferensi</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 2 }}>
+                    HARI &amp; TANGGAL PERTEMUAN
+                  </label>
+                  <input
+                    className="input"
+                    style={{ fontSize: 12 }}
+                    value={hariTanggalTemu}
+                    onChange={(e) => setHariTanggalTemu(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 2 }}>
+                    JAM / WAKTU
+                  </label>
+                  <input
+                    className="input"
+                    style={{ fontSize: 12 }}
+                    value={jamTemu}
+                    onChange={(e) => setJamTemu(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setSuratTarget(null)}
+                >
+                  Tutup
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%)', border: 'none', gap: 6 }}
+                  onClick={() => window.print()}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="6 9 6 2 18 2 18 9" />
+                    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                    <rect x="6" y="14" width="12" height="8" />
+                  </svg>
+                  🖨️ Cetak Surat Panggilan Resmi (A4)
+                </button>
+              </div>
+            </div>
+
+            {/* LEMBAR DOKUMEN CETAK RESMI (A4 PORTRAIT) */}
+            <div
+              style={{
+                maxHeight: '62vh',
+                overflowY: 'auto',
+                border: '1px solid #d1d5db',
+                borderRadius: 8,
+                background: '#ffffff',
+                padding: '28px 32px',
+                color: '#000',
+                fontSize: 12,
+                lineHeight: 1.6,
+              }}
+            >
+              {/* KOP SURAT RESMI */}
+              <div
+                style={{
+                  textAlign: 'center',
+                  borderBottom: '2.5px solid #000',
+                  paddingBottom: 8,
+                  marginBottom: 16,
+                }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.04em' }}>
+                  PEMERINTAH DAERAH KABUPATEN / KOTA
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.04em' }}>
+                  DINAS PENDIDIKAN DAN KEBUDAYAAN
+                </div>
+                <div style={{ fontSize: 17, fontWeight: 900, color: '#1e3a8a', letterSpacing: '0.03em', marginTop: 2 }}>
+                  SMP NEGERI
+                </div>
+                <div style={{ fontSize: 10, color: '#4b5563' }}>
+                  Jl. Pendidikan Terpadu No. 1 • Telp. (021) 7654321 • NPSN: 20210001 • Akreditasi: A (Unggul)
+                </div>
+              </div>
+
+              {/* TANGGAL & NOMOR SURAT */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
+                <div>
+                  <div>Nomor : <strong>{nomorSurat}</strong></div>
+                  <div>Lampiran : 1 (satu) Berkas Lembar Rekap Kasus</div>
+                  <div>
+                    Perihal : <strong>SURAT PANGGILAN ORANG TUA / WALI ({suratTarget.spLevel})</strong>
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  Kota Kedinasan, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </div>
+              </div>
+
+              {/* KEPADA YTH */}
+              <div style={{ marginBottom: 14 }}>
+                <div>Kepada Yth.</div>
+                <div style={{ fontWeight: 700 }}>Bapak / Ibu Orang Tua / Wali Peserta Didik</div>
+                <div>Dari: <strong>{suratTarget.siswa.nama}</strong> (NISN: {suratTarget.siswa.nisn || '-'})</div>
+                <div>Kelas: <strong>{suratTarget.siswa.rombel?.nama ? `Kelas ${suratTarget.siswa.rombel.nama}` : '-'}</strong></div>
+                <div>di Tempat</div>
+              </div>
+
+              {/* ISI SURAT */}
+              <div style={{ marginBottom: 14, textAlign: 'justify' }}>
+                Dengan hormat,
+                <br />
+                Sehubungan dengan pemantauan kedisiplinan dan tata tertib peserta didik di lingkungan SMP Negeri, bersama surat ini kami memberitahukan bahwa putra/putri Bapak/Ibu tercatat telah mengakumulasikan total <strong>{suratTarget.totalPoin} Poin Pelanggaran Tata Tertib</strong>, yang telah melampaui ambang batas sanksi kategori <strong>{suratTarget.spLevel}</strong>.
+              </div>
+
+              {/* TABEL RINCIAN KASUS */}
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>Rincian Catatan Kasus Pelanggaran Terakhir:</div>
+                <table className="table" style={{ fontSize: 11, margin: 0 }}>
+                  <thead>
+                    <tr style={{ background: '#f3f4f6' }}>
+                      <th style={{ width: 30, textAlign: 'center' }}>No</th>
+                      <th style={{ width: 90 }}>Tanggal</th>
+                      <th>Kategori Pelanggaran</th>
+                      <th style={{ width: 60, textAlign: 'center' }}>Poin</th>
+                      <th>Keterangan / Tindak Lanjut Awal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {suratTarget.kasusList.map((k, kIdx) => (
+                      <tr key={k.id}>
+                        <td style={{ textAlign: 'center' }}>{kIdx + 1}</td>
+                        <td>{k.tanggal.slice(0, 10)}</td>
+                        <td style={{ fontWeight: 600 }}>{k.kategori}</td>
+                        <td style={{ textAlign: 'center', fontWeight: 700, color: '#b91c1c' }}>+{k.poin}</td>
+                        <td style={{ fontSize: 10, color: '#374151' }}>{k.keterangan || 'Teguran lisan & pencatatan BK'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: '#fef2f2', fontWeight: 800 }}>
+                      <td colSpan={3} style={{ textAlign: 'right', paddingRight: 10 }}>TOTAL AKUMULASI POIN SANKSI:</td>
+                      <td style={{ textAlign: 'center', color: '#b91c1c', fontSize: 12 }}>{suratTarget.totalPoin} Poin</td>
+                      <td style={{ fontSize: 10, color: '#b91c1c' }}>Tingkat Sanksi: {suratTarget.spLevel}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* JADWAL PERTEMUAN */}
+              <div style={{ marginBottom: 14 }}>
+                Demi pembinaan mental, karakter, dan kelancaran pendidikan peserta didik yang bersangkutan, kami sangat mengharapkan kehadiran Bapak/Ibu Orang Tua/Wali pada:
+                <div
+                  style={{
+                    background: '#f9fafb',
+                    padding: '8px 14px',
+                    borderRadius: 6,
+                    border: '1px solid #e5e7eb',
+                    margin: '8px 0',
+                  }}
+                >
+                  <div>• <strong>Hari / Tanggal:</strong> {hariTanggalTemu}</div>
+                  <div>• <strong>Waktu:</strong> {jamTemu}</div>
+                  <div>• <strong>Tempat:</strong> {tempatTemu}</div>
+                  <div>• <strong>Menghadap:</strong> {menghadap}</div>
+                  <div>
+                    • <strong>Agenda / Keperluan:</strong>{' '}
+                    {suratTarget.spLevel === 'SP 3'
+                      ? 'Konferensi Kasus Terpadu, Penandatanganan Pakta Integritas Terakhir & Skorsing'
+                      : 'Konsultasi Tindak Lanjut Pembinaan Kedisiplinan Peserta Didik'}
+                  </div>
+                </div>
+                Mengingat pentingnya agenda ini bagi kelangsungan belajar peserta didik, kami mohon kehadiran Bapak/Ibu tepat pada waktunya tanpa diwakilkan.
+              </div>
+
+              {/* PENUTUP & TANDA TANGAN DUA PIHAK */}
+              <div style={{ marginTop: 20 }}>
+                <div>Demikian surat panggilan ini kami sampaikan. Atas perhatian dan kerja sama yang baik, kami ucapkan terima kasih.</div>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    textAlign: 'center',
+                    marginTop: 24,
+                  }}
+                >
+                  <div>
+                    <div>Mengetahui,</div>
+                    <div>Kepala SMP Negeri,</div>
+                    <div style={{ height: 50 }} />
+                    <div style={{ fontWeight: 700, textDecoration: 'underline' }}>
+                      Dra. Juwariyah, M.Pd
+                    </div>
+                    <div style={{ fontSize: 11, color: '#4b5563' }}>NIP. 196805121994122001</div>
+                  </div>
+
+                  <div>
+                    <div>Guru Bimbingan Konseling (BK),</div>
+                    <div style={{ height: 50 }} />
+                    <div style={{ fontWeight: 700, textDecoration: 'underline' }}>
+                      Nika Musrifah, S.Pd
+                    </div>
+                    <div style={{ fontSize: 11, color: '#4b5563' }}>NIP. 198203152008012006</div>
+                  </div>
+                </div>
+
+                {/* TEMBUSAN */}
+                <div style={{ marginTop: 24, fontSize: 10, color: '#4b5563', borderTop: '1px solid #e5e7eb', paddingTop: 6 }}>
+                  <strong>Tembusan Yth:</strong>
+                  <div>1. Kepala SMP Negeri (sebagai laporan)</div>
+                  <div>2. Wali Kelas ybs</div>
+                  <div>3. Arsip Layanan Bimbingan &amp; Konseling (BK)</div>
+                </div>
+              </div>
             </div>
           </div>
         </Modal>

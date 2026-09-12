@@ -397,49 +397,135 @@ async function main() {
   console.log(`✅ Berhasil mencatat ${absensiBatch.length} log presensi siswa!`);
 
   // 8. Jadwal Pelajaran (Terdistribusi per hari untuk berbagai rombel)
-  console.log('8. Membuat Jadwal Pelajaran Semester Ganjil...');
-  const jadwalSeed = [
-    // 7A
-    { rombel: '7A', hari: Hari.SENIN, jamKe: 1, jamMulai: createTime(7, 30), jamSelesai: createTime(8, 50), mapel: 'MTK', nip: '198006182006042021' },
-    { rombel: '7A', hari: Hari.SENIN, jamKe: 2, jamMulai: createTime(9, 5), jamSelesai: createTime(10, 25), mapel: 'BIN', nip: '199011122019032018' },
-    { rombel: '7A', hari: Hari.SELASA, jamKe: 1, jamMulai: createTime(7, 30), jamSelesai: createTime(8, 50), mapel: 'IPA', nip: '197508202000032002' },
-    { rombel: '7A', hari: Hari.SELASA, jamKe: 2, jamMulai: createTime(9, 5), jamSelesai: createTime(10, 25), mapel: 'BIG', nip: '197809142005012008' },
-    { rombel: '7A', hari: Hari.RABU, jamKe: 1, jamMulai: createTime(7, 30), jamSelesai: createTime(8, 50), mapel: 'IPS', nip: '197204151998022001' },
-    { rombel: '7A', hari: Hari.RABU, jamKe: 2, jamMulai: createTime(9, 5), jamSelesai: createTime(10, 25), mapel: 'PJOK', nip: '198609252010011015' },
-    { rombel: '7A', hari: Hari.KAMIS, jamKe: 1, jamMulai: createTime(7, 30), jamSelesai: createTime(8, 50), mapel: 'INF', nip: '199401152022031005' },
-    { rombel: '7A', hari: Hari.JUMAT, jamKe: 1, jamMulai: createTime(7, 30), jamSelesai: createTime(8, 50), mapel: 'PPKN', nip: '197103101997022001' },
-
-    // 8A
-    { rombel: '8A', hari: Hari.SENIN, jamKe: 1, jamMulai: createTime(7, 30), jamSelesai: createTime(8, 50), mapel: 'PAI', nip: '197905142008011014' },
-    { rombel: '8A', hari: Hari.SENIN, jamKe: 2, jamMulai: createTime(9, 5), jamSelesai: createTime(10, 25), mapel: 'BIN', nip: '197611082003121005' },
-    { rombel: '8A', hari: Hari.SELASA, jamKe: 1, jamMulai: createTime(7, 30), jamSelesai: createTime(8, 50), mapel: 'SUN', nip: '199008062019031012' },
-    { rombel: '8A', hari: Hari.RABU, jamKe: 1, jamMulai: createTime(7, 30), jamSelesai: createTime(8, 50), mapel: 'PKY', nip: '198208142008012016' },
-
-    // 9A
-    { rombel: '9A', hari: Hari.SENIN, jamKe: 1, jamMulai: createTime(7, 30), jamSelesai: createTime(8, 50), mapel: 'BIN', nip: '198109032007012015' },
-    { rombel: '9A', hari: Hari.SENIN, jamKe: 2, jamMulai: createTime(9, 5), jamSelesai: createTime(10, 25), mapel: 'MTK', nip: '198005162006041011' },
-    { rombel: '9A', hari: Hari.SELASA, jamKe: 1, jamMulai: createTime(7, 30), jamSelesai: createTime(8, 50), mapel: 'BIG', nip: '197706242005012006' },
-    { rombel: '9A', hari: Hari.RABU, jamKe: 1, jamMulai: createTime(7, 30), jamSelesai: createTime(8, 50), mapel: 'IPA', nip: '198603122011012019' },
+  // 8. Jadwal Pelajaran (Matriks Lengkap Sesuai SK Pembagian Tugas Mengajar 30 Guru)
+  console.log('8. Membuat Jadwal Pelajaran Lengkap 22 Rombel Sesuai SK Dosen/Guru Pengampu...');
+  const penugasanSK: Array<{
+    nip: string;
+    mapel: string;
+    rombels: string[];
+  }> = [
+    // 2. Aini Supiyah, S.Pd, MM: IPS (8G // 9 ABCDEFG)
+    { nip: '197204151998022001', mapel: 'IPS', rombels: ['8G', '9A', '9B', '9C', '9D', '9E', '9F', '9G'] },
+    // 3. Lilis Yuliati, M.Pd: IPA (8 ABCDEF)
+    { nip: '197508202000032002', mapel: 'IPA', rombels: ['8A', '8B', '8C', '8D', '8E', '8F'] },
+    // 4. Hj. Heny Susana, S.Pd: PPKN (7 ABCDEFGH // 9 ABC)
+    { nip: '197103101997022001', mapel: 'PPKN', rombels: ['7A', '7B', '7C', '7D', '7E', '7F', '7G', '7H', '9A', '9B', '9C'] },
+    // 5. Dewi Nurhandayani, S.Pd: BIG (8 ABCDEFG)
+    { nip: '197809142005012008', mapel: 'BIG', rombels: ['8A', '8B', '8C', '8D', '8E', '8F', '8G'] },
+    // 6. Mohamad Reza Septiyani, S.Pd: PJOK (7 ABCD // 9ABCDEFG)
+    { nip: '198609252010011015', mapel: 'PJOK', rombels: ['7A', '7B', '7C', '7D', '9A', '9B', '9C', '9D', '9E', '9F', '9G'] },
+    // 7. Wilda Fajaratu Rahmi A, S.Pd: BIN (7 ABCDE)
+    { nip: '199011122019032018', mapel: 'BIN', rombels: ['7A', '7B', '7C', '7D', '7E'] },
+    // 9. Wiwin Djueriah, S.Pd, M.Han: MTK (9 ABCDEFG)
+    { nip: '198006182006042021', mapel: 'MTK', rombels: ['9A', '9B', '9C', '9D', '9E', '9F', '9G'] },
+    // 10. Reza Kusnendar, S.Pd: MTK (7 ABCDEFG)
+    { nip: '198712052011011009', mapel: 'MTK', rombels: ['7A', '7B', '7C', '7D', '7E', '7F', '7G'] },
+    // 11. Acip Sulaeman, S.Pd I: IPS (7 ABC) & PAI (9 ABCDEFG)
+    { nip: '197905142008011014', mapel: 'IPS', rombels: ['7A', '7B', '7C'] },
+    { nip: '197905142008011014', mapel: 'PAI', rombels: ['9A', '9B', '9C', '9D', '9E', '9F', '9G'] },
+    // 12. Awaliyatussa'dah M, S.Pd.I: PAI (7 ABCDEFGH) & SUN (9 ABC)
+    { nip: '198307222009012011', mapel: 'PAI', rombels: ['7A', '7B', '7C', '7D', '7E', '7F', '7G', '7H'] },
+    { nip: '198307222009012011', mapel: 'SUN', rombels: ['9A', '9B', '9C'] },
+    // 13. Saherudin, S.Pd: IPS (7 GH // 8 ABCDEF)
+    { nip: '197403191999031004', mapel: 'IPS', rombels: ['7G', '7H', '8A', '8B', '8C', '8D', '8E', '8F'] },
+    // 14. Anwar Sanusi, M.Pd: BIN (9 ABCDE)
+    { nip: '197611082003121005', mapel: 'BIN', rombels: ['9A', '9B', '9C', '9D', '9E'] },
+    // 15. Siti Mariam Ulfah, S.Pd: BIN (7 FGH // 8 EFG)
+    { nip: '198504202010012030', mapel: 'BIN', rombels: ['7F', '7G', '7H', '8E', '8F', '8G'] },
+    // 16. Iip Latifah, S.Pd.I: PKY (7 EFGH) & PAI (8 ABCDEFG)
+    { nip: '198208142008012016', mapel: 'PKY', rombels: ['7E', '7F', '7G', '7H'] },
+    { nip: '198208142008012016', mapel: 'PAI', rombels: ['8A', '8B', '8C', '8D', '8E', '8F', '8G'] },
+    // 17. Adam Yahya, S.Pd: PJOK (7 EFGH // 8 ABCDEFG)
+    { nip: '198801282014031002', mapel: 'PJOK', rombels: ['7E', '7F', '7G', '7H', '8A', '8B', '8C', '8D', '8E', '8F', '8G'] },
+    // 18. Siti Maesaroh, S.Pd: BIN (8 ABCD // 9 FG)
+    { nip: '198109032007012015', mapel: 'BIN', rombels: ['8A', '8B', '8C', '8D', '9F', '9G'] },
+    // 19. Taufik Zulkarnaen, S.Pd: MTK (7 H) & BIG (9 ABCDEFG)
+    { nip: '198005162006041011', mapel: 'MTK', rombels: ['7H'] },
+    { nip: '198005162006041011', mapel: 'BIG', rombels: ['9A', '9B', '9C', '9D', '9E', '9F', '9G'] },
+    // 20. Imas Masitoh, S.Pd: BIG (7 ABCDEFG)
+    { nip: '197706242005012006', mapel: 'BIG', rombels: ['7A', '7B', '7C', '7D', '7E', '7F', '7G'] },
+    // 21. Nia Kurniawati, S.Pd: IPA (7 ABCDEFG)
+    { nip: '198603122011012019', mapel: 'IPA', rombels: ['7A', '7B', '7C', '7D', '7E', '7F', '7G'] },
+    // 22. Dian Permatasari, S.Pd: IPA (9 ABCDEFG)
+    { nip: '198907152015032004', mapel: 'IPA', rombels: ['9A', '9B', '9C', '9D', '9E', '9F', '9G'] },
+    // 23. Aisyah Nurul Amini, S.Pd: MTK (8 ABCDEFG)
+    { nip: '199202102019032021', mapel: 'MTK', rombels: ['8A', '8B', '8C', '8D', '8E', '8F', '8G'] },
+    // 24. Ainun Fitri, S.Pd: PKY (7 ABCD // 9 ABCDEFG)
+    { nip: '199105182019032016', mapel: 'PKY', rombels: ['7A', '7B', '7C', '7D', '9A', '9B', '9C', '9D', '9E', '9F', '9G'] },
+    // 25. Sofiyah, S.Sos: PPKN (8 ABCDEFG // 9 DEFG)
+    { nip: '197308111998022003', mapel: 'PPKN', rombels: ['8A', '8B', '8C', '8D', '8E', '8F', '8G', '9D', '9E', '9F', '9G'] },
+    // 26. Fingkan Ellita, S.Pd: IPS (7 DEF) & BIG (7 H) & PKY (8 ABCDEFG)
+    { nip: '199310222020122014', mapel: 'IPS', rombels: ['7D', '7E', '7F'] },
+    { nip: '199310222020122014', mapel: 'BIG', rombels: ['7H'] },
+    { nip: '199310222020122014', mapel: 'PKY', rombels: ['8A', '8B', '8C', '8D', '8E', '8F', '8G'] },
+    // 27. Lucky Aditya Putra, S.Kom: INF (8 CDEFG // 9 ABCDEFG)
+    { nip: '199401152022031005', mapel: 'INF', rombels: ['8C', '8D', '8E', '8F', '8G', '9A', '9B', '9C', '9D', '9E', '9F', '9G'] },
+    // 28. Mohammad Fauzi Rahman, M.I.Kom: SUN (7 ABCDEFGH // 8 ABCDEFG // 9 DEFG)
+    { nip: '199008062019031012', mapel: 'SUN', rombels: ['7A', '7B', '7C', '7D', '7E', '7F', '7G', '7H', '8A', '8B', '8C', '8D', '8E', '8F', '8G', '9D', '9E', '9F', '9G'] },
+    // 29. Muhamad Rizky Aprian, S.Kom: INF (7 ABCDEFGH // 8 AB)
+    { nip: '199504252024011003', mapel: 'INF', rombels: ['7A', '7B', '7C', '7D', '7E', '7F', '7G', '7H', '8A', '8B'] },
+    // 30. Wikrama Wardana: IPA (7 H // 8 G)
+    { nip: '198511202010011018', mapel: 'IPA', rombels: ['7H', '8G'] },
   ];
 
-  for (const j of jadwalSeed) {
-    const rombelId = rombelMap[j.rombel];
-    const mapelId = mapelMap[j.mapel];
-    const guruId = guruMap[j.nip];
-    if (rombelId && mapelId && guruId) {
-      await prisma.jadwal.create({
-        data: {
-          rombelId,
-          hari: j.hari,
-          jamKe: j.jamKe,
-          jamMulai: j.jamMulai,
-          jamSelesai: j.jamSelesai,
-          mapelId,
-          guruId,
-        },
-      });
+  // Susunan waktu slot belajar per mapel untuk setiap rombel
+  const slotMapelConfig: Array<{ mapel: string; hari: Hari; jamKe: number; jamMulai: Date; jamSelesai: Date }> = [
+    { mapel: 'MTK', hari: Hari.SENIN, jamKe: 1, jamMulai: createTime(7, 30), jamSelesai: createTime(8, 50) },
+    { mapel: 'BIN', hari: Hari.SENIN, jamKe: 2, jamMulai: createTime(9, 5), jamSelesai: createTime(10, 25) },
+    { mapel: 'IPA', hari: Hari.SELASA, jamKe: 1, jamMulai: createTime(7, 30), jamSelesai: createTime(8, 50) },
+    { mapel: 'BIG', hari: Hari.SELASA, jamKe: 2, jamMulai: createTime(9, 5), jamSelesai: createTime(10, 25) },
+    { mapel: 'IPS', hari: Hari.RABU, jamKe: 1, jamMulai: createTime(7, 30), jamSelesai: createTime(8, 50) },
+    { mapel: 'PJOK', hari: Hari.RABU, jamKe: 2, jamMulai: createTime(9, 5), jamSelesai: createTime(10, 25) },
+    { mapel: 'INF', hari: Hari.KAMIS, jamKe: 1, jamMulai: createTime(7, 30), jamSelesai: createTime(8, 50) },
+    { mapel: 'PKY', hari: Hari.KAMIS, jamKe: 2, jamMulai: createTime(9, 5), jamSelesai: createTime(10, 25) },
+    { mapel: 'PPKN', hari: Hari.JUMAT, jamKe: 1, jamMulai: createTime(7, 30), jamSelesai: createTime(8, 50) },
+    { mapel: 'SUN', hari: Hari.JUMAT, jamKe: 2, jamMulai: createTime(9, 5), jamSelesai: createTime(10, 25) },
+    { mapel: 'PAI', hari: Hari.JUMAT, jamKe: 3, jamMulai: createTime(10, 35), jamSelesai: createTime(11, 45) },
+  ];
+
+  const jadwalBatch: Array<{
+    id: string;
+    rombelId: string;
+    mapelId: string;
+    guruId: string;
+    hari: Hari;
+    jamKe: number;
+    jamMulai: Date;
+    jamSelesai: Date;
+  }> = [];
+
+  for (const r of allRombels) {
+    const rombelNama = r.nama;
+    for (const slot of slotMapelConfig) {
+      // Cari penugasan guru yang mengampu mapel slot ini di rombel ini
+      const tugas = penugasanSK.find(
+        (t) => t.mapel === slot.mapel && t.rombels.includes(rombelNama)
+      );
+
+      if (tugas) {
+        const guruId = guruMap[tugas.nip];
+        const mapelId = mapelMap[slot.mapel];
+        if (guruId && mapelId) {
+          jadwalBatch.push({
+            id: randomUUID(),
+            rombelId: r.id,
+            mapelId,
+            guruId,
+            hari: slot.hari,
+            jamKe: slot.jamKe,
+            jamMulai: slot.jamMulai,
+            jamSelesai: slot.jamSelesai,
+          });
+        }
+      }
     }
   }
+
+  await prisma.jadwal.createMany({
+    data: jadwalBatch,
+    skipDuplicates: true,
+  });
+  console.log(`✅ Berhasil membuat ${jadwalBatch.length} slot jadwal & penugasan mengajar resmi!`);
 
   // 9. Nilai Sampel untuk Siswa
   console.log('9. Memasukkan Nilai Siswa (Tugas, Harian, UTS)...');

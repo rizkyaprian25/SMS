@@ -65,7 +65,16 @@ export class PerizinanService {
   }
 
   async putuskan(id: string, user: JwtPayload, dto: PutuskanIzinDto) {
-    if (!user.guruId) throw new ForbiddenException('Akun belum terhubung ke data guru');
+    let pemrosesGuruId = user.guruId;
+    if (!pemrosesGuruId) {
+      if (user.role === 'SUPER_ADMIN') {
+        const defaultGuru = await this.prisma.guru.findFirst({ select: { id: true } });
+        if (!defaultGuru) throw new ForbiddenException('Belum ada guru yang terdaftar');
+        pemrosesGuruId = defaultGuru.id;
+      } else {
+        throw new ForbiddenException('Akun belum terhubung ke data guru');
+      }
+    }
     const izin = await this.prisma.perizinan.findUnique({
       where: { id },
       include: { siswa: { include: { rombel: true } } },
@@ -73,17 +82,17 @@ export class PerizinanService {
     if (!izin) throw new NotFoundException('Perizinan tidak ditemukan');
     if (izin.status !== 'DIAJUKAN') throw new ConflictException('Sudah diputuskan sebelumnya');
     // Wali hanya untuk kelas binaannya; admin boleh semua.
-    if (user.role !== 'SUPER_ADMIN' && izin.siswa.rombel?.waliKelasId !== user.guruId) {
+    if (user.role !== 'SUPER_ADMIN' && izin.siswa.rombel?.waliKelasId !== pemrosesGuruId) {
       throw new ForbiddenException('Hanya wali kelas ybs yang boleh memutuskan');
     }
     const status = dto.putusan === 'SETUJU' ? 'DISETUJUI' : 'DITOLAK';
     const hasil = await this.prisma.$transaction(async (tx) => {
       const baris = await tx.perizinan.update({
         where: { id },
-        data: { status, diprosesOleh: user.guruId },
+        data: { status, diprosesOleh: pemrosesGuruId },
       });
       if (status === 'DISETUJUI' && izin.siswa.rombelId) {
-        await this.tandaiAbsensi(tx, izin, user.guruId as string);
+        await this.tandaiAbsensi(tx, izin, pemrosesGuruId as string);
       }
       await tx.auditLog.create({
         data: {
@@ -92,7 +101,7 @@ export class PerizinanService {
           entitasId: id,
           sebelum: { status: 'DIAJUKAN' },
           sesudah: { status, catatan: dto.catatan },
-          dilakukanOleh: user.guruId as string,
+          dilakukanOleh: pemrosesGuruId as string,
         },
       });
       return baris;

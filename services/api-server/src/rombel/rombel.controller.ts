@@ -24,6 +24,11 @@ export class RombelController {
     return this.rombel.siswa(id, q);
   }
 
+  @Get(':id/pengampu')
+  pengampu(@Param('id') id: string) {
+    return this.rombel.pengampu(id);
+  }
+
   @Roles('SUPER_ADMIN')
   @Post()
   create(@Body() dto: CreateRombelDto) {
