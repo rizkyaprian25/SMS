@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { SiswaService } from './siswa.service';
 import { ImportService } from './import.service';
@@ -50,6 +50,12 @@ export class SiswaController {
   @Roles('SUPER_ADMIN')
   @Post(':id/arsip')
   archive(@Param('id') id: string) {
+    return this.siswa.archive(id);
+  }
+
+  @Roles('SUPER_ADMIN')
+  @Delete(':id')
+  delete(@Param('id') id: string) {
     return this.siswa.archive(id);
   }
 }

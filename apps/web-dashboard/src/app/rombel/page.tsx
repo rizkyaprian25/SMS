@@ -245,9 +245,9 @@ export default function RombelPage() {
   });
 
   const arsipRombelMutasi = useMutation({
-    mutationFn: async (id: string) => (await api.post(`/rombel/${id}/arsip`)).data,
+    mutationFn: async (id: string) => (await api.delete(`/rombel/${id}`)).data,
     onSuccess: () => {
-      toast('Rombel berhasil diarsipkan!', 'success');
+      toast('Rombel berhasil dihapus / diarsipkan!', 'success');
       qc.invalidateQueries({ queryKey: ['rombel'] });
       setArsipTarget(null);
     },
@@ -460,10 +460,11 @@ export default function RombelPage() {
                 <button
                   type="button"
                   className="btn btn-outline btn-sm"
-                  style={{ fontSize: 12, padding: '4px 10px', color: 'var(--danger)' }}
+                  style={{ fontSize: 12, padding: '4px 10px', color: 'var(--danger)', borderColor: 'var(--danger)' }}
                   onClick={() => setArsipTarget(r)}
+                  title="Hapus / Arsipkan Rombel"
                 >
-                  Arsipkan
+                  Hapus Rombel
                 </button>
               </div>
             </div>
@@ -646,18 +647,18 @@ export default function RombelPage() {
         </form>
       </Modal>
 
-      {/* Modal Konfirmasi Arsip Rombel */}
+      {/* Modal Konfirmasi Hapus / Arsip Rombel */}
       <Modal
         isOpen={!!arsipTarget}
         onClose={() => setArsipTarget(null)}
-        title="Arsipkan Rombongan Belajar"
+        title="Hapus / Arsipkan Rombongan Belajar"
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <p style={{ fontSize: 14 }}>
-            Apakah Anda yakin ingin mengarsipkan rombel <strong>{arsipTarget?.nama}</strong>?
+            Apakah Anda yakin ingin menghapus / mengarsipkan rombel <strong>{arsipTarget?.nama}</strong>?
           </p>
           <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            Rombel akan disembunyikan dari daftar kelas aktif tahun ajaran ini. Riwayat jadwal dan nilai siswa di kelas ini tetap utuh.
+            Rombel akan dinonaktifkan dari daftar kelas aktif tahun ajaran ini. Riwayat jadwal, absensi, dan nilai siswa di kelas ini tetap aman di database.
           </p>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
             <button
@@ -675,7 +676,7 @@ export default function RombelPage() {
                 if (arsipTarget) arsipRombelMutasi.mutate(arsipTarget.id);
               }}
             >
-              {arsipRombelMutasi.isPending ? 'Mengarsipkan…' : 'Ya, Arsipkan Rombel'}
+              {arsipRombelMutasi.isPending ? 'Menghapus…' : 'Ya, Hapus Rombel'}
             </button>
           </div>
         </div>

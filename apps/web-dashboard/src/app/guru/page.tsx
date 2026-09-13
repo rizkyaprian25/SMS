@@ -29,16 +29,43 @@ interface Guru {
   waliUntuk?: Array<{ id: string; nama: string }>;
 }
 
+interface MapelItem {
+  id: string;
+  kode: string;
+  nama: string;
+  kelompok?: string | null;
+  _count?: { diampu: number; jadwal: number };
+}
+
 export default function GuruPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
+
+  // Tab State: 'guru' | 'mapel'
+  const [activeTab, setActiveTab] = useState<'guru' | 'mapel'>('guru');
+
+  // Search Guru
   const [q, setQ] = useState('');
   const [searchInput, setSearchInput] = useState('');
+
+  // Modals Guru
   const [showAddModal, setShowAddModal] = useState(false);
   const [editMapel, setEditMapel] = useState<Guru | null>(null);
   const [editGuru, setEditGuru] = useState<Guru | null>(null);
   const [editGuruNama, setEditGuruNama] = useState('');
   const [editGuruNip, setEditGuruNip] = useState('');
+  const [hapusGuruTarget, setHapusGuruTarget] = useState<Guru | null>(null);
+
+  // Modals & Forms Mapel
+  const [showAddMapelModal, setShowAddMapelModal] = useState(false);
+  const [addMapelKode, setAddMapelKode] = useState('');
+  const [addMapelNama, setAddMapelNama] = useState('');
+  const [addMapelKelompok, setAddMapelKelompok] = useState('Kelompok A (Umum)');
+  const [editMapelItem, setEditMapelItem] = useState<MapelItem | null>(null);
+  const [editMapelKode, setEditMapelKode] = useState('');
+  const [editMapelNama, setEditMapelNama] = useState('');
+  const [editMapelKelompok, setEditMapelKelompok] = useState('');
+  const [hapusMapelTarget, setHapusMapelTarget] = useState<MapelItem | null>(null);
 
   // Debounce search input (300ms)
   useEffect(() => {
@@ -55,9 +82,9 @@ export default function GuruPage() {
     retry: false,
   });
 
-  const mapel = useQuery({
+  const mapel = useQuery<{ data: MapelItem[] }>({
     queryKey: qk.mapel,
-    queryFn: async () => (await api.get('/mapel')).data as { data: { id: string; nama: string }[] },
+    queryFn: async () => (await api.get('/mapel')).data,
     retry: false,
   });
 
@@ -66,12 +93,17 @@ export default function GuruPage() {
     defaultValues: { nip: '', nama: '', email: '', password: '' },
   });
 
+  // Mutasi Guru
   const tambah = useMutation({
     mutationFn: async (v: Form) => (await api.post('/guru', v)).data,
     onSuccess: () => {
       form.reset();
       setShowAddModal(false);
       qc.invalidateQueries({ queryKey: ['guru'] });
+      toast('Guru baru berhasil ditambahkan!', 'success');
+    },
+    onError: (err) => {
+      toast(pesanError(err), 'danger');
     },
   });
 
@@ -101,257 +133,516 @@ export default function GuruPage() {
     },
   });
 
+  const hapusGuruMutasi = useMutation({
+    mutationFn: async (id: string) => (await api.delete(`/guru/${id}`)).data,
+    onSuccess: () => {
+      toast('Guru berhasil dinonaktifkan / diarsipkan!', 'success');
+      setHapusGuruTarget(null);
+      qc.invalidateQueries({ queryKey: ['guru'] });
+    },
+    onError: (err) => {
+      toast(pesanError(err), 'danger');
+    },
+  });
+
+  // Mutasi Mapel
+  const tambahMapelMutasi = useMutation({
+    mutationFn: async (v: { kode: string; nama: string; kelompok?: string }) =>
+      (await api.post('/mapel', v)).data,
+    onSuccess: () => {
+      toast('Mata pelajaran baru berhasil ditambahkan!', 'success');
+      setShowAddMapelModal(false);
+      setAddMapelKode('');
+      setAddMapelNama('');
+      setAddMapelKelompok('Kelompok A (Umum)');
+      qc.invalidateQueries({ queryKey: qk.mapel });
+    },
+    onError: (err) => {
+      toast(pesanError(err), 'danger');
+    },
+  });
+
+  const updateMapelMutasi = useMutation({
+    mutationFn: async (v: { id: string; kode: string; nama: string; kelompok?: string }) =>
+      (await api.patch(`/mapel/${v.id}`, { kode: v.kode, nama: v.nama, kelompok: v.kelompok })).data,
+    onSuccess: () => {
+      toast('Data mata pelajaran berhasil diperbarui!', 'success');
+      setEditMapelItem(null);
+      qc.invalidateQueries({ queryKey: qk.mapel });
+    },
+    onError: (err) => {
+      toast(pesanError(err), 'danger');
+    },
+  });
+
+  const hapusMapelMutasi = useMutation({
+    mutationFn: async (id: string) => (await api.delete(`/mapel/${id}`)).data,
+    onSuccess: () => {
+      toast('Mata pelajaran berhasil dihapus!', 'success');
+      setHapusMapelTarget(null);
+      qc.invalidateQueries({ queryKey: qk.mapel });
+    },
+    onError: (err) => {
+      toast(pesanError(err), 'danger');
+    },
+  });
+
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     setQ(searchInput);
   }
 
   const guruList = guru.data?.data ?? [];
+  const mapelList = mapel.data?.data ?? [];
 
   return (
     <div>
+      {/* Header Utama & Tombol Tambah */}
       <div className="page-header">
         <div>
-          <h1>Data Guru &amp; Tenaga Pengajar</h1>
-          <p>Kelola profil guru, penugasan mata pelajaran yang diampu, dan akun login.</p>
+          <h1>{activeTab === 'guru' ? 'Data Guru & Tenaga Pengajar' : 'Data Mata Pelajaran (Mapel)'}</h1>
+          <p>
+            {activeTab === 'guru'
+              ? 'Kelola profil guru, penugasan mata pelajaran yang diampu, akun login, dan status keaktifan.'
+              : 'Kelola kurikulum mata pelajaran sekolah, kode, kelompok mata pelajaran, dan jadwal terkait.'}
+          </p>
         </div>
         <div className="page-header-actions">
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            onClick={() => {
-              form.reset();
-              setShowAddModal(true);
-            }}
-          >
-            + Tambah Guru Baru
-          </button>
+          {activeTab === 'guru' ? (
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={() => {
+                form.reset();
+                setShowAddModal(true);
+              }}
+            >
+              + Tambah Guru Baru
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={() => {
+                setAddMapelKode('');
+                setAddMapelNama('');
+                setAddMapelKelompok('Kelompok A (Umum)');
+                setShowAddMapelModal(true);
+              }}
+            >
+              + Tambah Mapel Baru
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Filter / Search Bar */}
-      <div className="card" style={{ marginBottom: 20 }}>
-        <div className="card-body" style={{ padding: '14px 18px' }}>
-          <form onSubmit={handleSearch} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <div style={{ position: 'relative', flex: 1 }}>
-              <input
-                className="input"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Ketik NIP (angka) atau nama guru (otomatis mencari)..."
-                style={{ paddingLeft: 36, paddingRight: searchInput ? 64 : 34 }}
-              />
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-subtle)' }}
-              >
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" x2="16.65" y1="21" y2="16.65" />
-              </svg>
+      {/* Tab Switcher: Guru vs Mapel */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 10,
+          marginBottom: 20,
+          borderBottom: '1px solid var(--border)',
+          paddingBottom: 12,
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setActiveTab('guru')}
+          style={{
+            padding: '8px 18px',
+            borderRadius: 'var(--radius-md)',
+            fontWeight: 700,
+            fontSize: 13,
+            cursor: 'pointer',
+            border: activeTab === 'guru' ? 'none' : '1px solid var(--border)',
+            background: activeTab === 'guru' ? 'var(--primary)' : 'var(--bg-surface)',
+            color: activeTab === 'guru' ? '#ffffff' : 'var(--text-muted)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            transition: 'all 0.2s',
+          }}
+        >
+          <span>👨‍🏫</span>
+          <span>Data Guru &amp; Tendik ({guruList.length})</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('mapel')}
+          style={{
+            padding: '8px 18px',
+            borderRadius: 'var(--radius-md)',
+            fontWeight: 700,
+            fontSize: 13,
+            cursor: 'pointer',
+            border: activeTab === 'mapel' ? 'none' : '1px solid var(--border)',
+            background: activeTab === 'mapel' ? 'var(--primary)' : 'var(--bg-surface)',
+            color: activeTab === 'mapel' ? '#ffffff' : 'var(--text-muted)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            transition: 'all 0.2s',
+          }}
+        >
+          <span>📚</span>
+          <span>Mata Pelajaran (Mapel) ({mapelList.length})</span>
+        </button>
+      </div>
 
-              {/* Spinner saat loading atau tombol clear X */}
-              <div style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                {guru.isFetching && (
+      {/* TAB KONTEN: GURU */}
+      {activeTab === 'guru' && (
+        <>
+          {/* Filter / Search Bar Guru */}
+          <div className="card" style={{ marginBottom: 20 }}>
+            <div className="card-body" style={{ padding: '14px 18px' }}>
+              <form onSubmit={handleSearch} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <input
+                    className="input"
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    placeholder="Ketik NIP (angka) atau nama guru (otomatis mencari)..."
+                    style={{ paddingLeft: 36, paddingRight: searchInput ? 64 : 34 }}
+                  />
                   <svg
-                    style={{ animation: 'spin 1s linear infinite', color: 'var(--primary)' }}
-                    width="15"
-                    height="15"
+                    width="16"
+                    height="16"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
-                    strokeWidth="2.5"
+                    strokeWidth="2"
+                    style={{
+                      position: 'absolute',
+                      left: 11,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: 'var(--text-subtle)',
+                    }}
                   >
-                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" x2="16.65" y1="21" y2="16.65" />
                   </svg>
-                )}
-                {searchInput && (
+
+                  {/* Spinner saat loading atau tombol clear X */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      right: 10,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    {guru.isFetching && (
+                      <svg
+                        style={{ animation: 'spin 1s linear infinite', color: 'var(--primary)' }}
+                        width="15"
+                        height="15"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                      >
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                      </svg>
+                    )}
+                    {searchInput && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchInput('');
+                          setQ('');
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: 2,
+                          color: 'var(--text-subtle)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                        title="Hapus pencarian"
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <button type="submit" className="btn btn-secondary">
+                  Cari
+                </button>
+                {q && (
                   <button
                     type="button"
+                    className="btn btn-outline"
                     onClick={() => {
                       setSearchInput('');
                       setQ('');
                     }}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      padding: 2,
-                      color: 'var(--text-subtle)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                    title="Hapus pencarian"
                   >
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
+                    Reset
                   </button>
                 )}
-              </div>
+              </form>
             </div>
-            <button type="submit" className="btn btn-secondary">
-              Cari
-            </button>
-            {q && (
-              <button
-                type="button"
-                className="btn btn-outline"
-                onClick={() => {
-                  setSearchInput('');
-                  setQ('');
-                }}
-              >
-                Reset
-              </button>
-            )}
-          </form>
-        </div>
-      </div>
+          </div>
 
-      {guru.isError && (
-        <div className="alert alert-danger">
-          <span>Gagal memuat daftar guru. Pastikan server backend sedang aktif.</span>
-        </div>
+          {guru.isError && (
+            <div className="alert alert-danger">
+              <span>Gagal memuat daftar guru. Pastikan server backend sedang aktif.</span>
+            </div>
+          )}
+
+          {guru.isPending ? (
+            <div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
+              <p>Memuat daftar guru…</p>
+            </div>
+          ) : guruList.length === 0 ? (
+            <div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
+              <p style={{ fontWeight: 600, color: 'var(--text-main)' }}>Belum ada data guru ditemukan.</p>
+            </div>
+          ) : (
+            <div className="table-container">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Nama Guru</th>
+                    <th>NIP</th>
+                    <th>Email Akun</th>
+                    <th>Mapel yang Diampu</th>
+                    <th>Kelas yang Diajar (SK)</th>
+                    <th style={{ textAlign: 'right' }}>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {guruList.map((g) => (
+                    <tr key={g.id}>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: '50%',
+                              background: 'var(--primary-light)',
+                              color: 'var(--primary)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontWeight: 700,
+                              fontSize: 12,
+                            }}
+                          >
+                            {g.nama.slice(0, 1).toUpperCase()}
+                          </div>
+                          <span style={{ fontWeight: 600 }}>{g.nama}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <code style={{ fontSize: 12, background: 'var(--bg-subtle)', padding: '2px 6px', borderRadius: 4 }}>
+                          {g.nip}
+                        </code>
+                      </td>
+                      <td>{g.pengguna?.email ?? '-'}</td>
+                      <td>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                          {g.mapelDiampu.length > 0 ? (
+                            g.mapelDiampu.map((m) => (
+                              <Badge key={m.mapel.id} variant="info">
+                                {m.mapel.nama}
+                              </Badge>
+                            ))
+                          ) : (
+                            <span style={{ color: 'var(--text-subtle)', fontSize: 12 }}>Belum diatur</span>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 280 }}>
+                          {g.waliUntuk && g.waliUntuk.length > 0 && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                              {g.waliUntuk.map((w) => (
+                                <Badge key={w.id} variant="success" style={{ fontSize: 11 }}>
+                                  ★ Wali {w.nama}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                            {g.rombelDiampu && g.rombelDiampu.length > 0 ? (
+                              g.rombelDiampu.map((r) => (
+                                <span
+                                  key={r.id}
+                                  title={`Mengajar ${r.mapels.join(', ')} di kelas ${r.nama}`}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    padding: '2px 6px',
+                                    borderRadius: 4,
+                                    fontSize: 11,
+                                    fontWeight: 600,
+                                    background: 'var(--bg-subtle)',
+                                    border: '1px solid var(--border)',
+                                    color: 'var(--text-main)',
+                                  }}
+                                >
+                                  {r.nama}
+                                </span>
+                              ))
+                            ) : (
+                              <span style={{ color: 'var(--text-subtle)', fontSize: 12 }}>-</span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            style={{ fontSize: 12, padding: '4px 8px' }}
+                            onClick={() => {
+                              setEditGuru(g);
+                              setEditGuruNama(g.nama);
+                              setEditGuruNip(g.nip);
+                            }}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-outline btn-sm"
+                            style={{ fontSize: 12, padding: '4px 8px' }}
+                            onClick={() => setEditMapel(g)}
+                          >
+                            Atur Mapel
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-outline btn-sm"
+                            style={{ fontSize: 12, padding: '4px 8px', color: 'var(--danger)', borderColor: 'var(--danger)' }}
+                            onClick={() => setHapusGuruTarget(g)}
+                            title="Hapus / Arsipkan Guru"
+                          >
+                            Hapus
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
 
-      {guru.isPending ? (
-        <div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
-          <p>Memuat daftar guru…</p>
-        </div>
-      ) : guruList.length === 0 ? (
-        <div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
-          <p style={{ fontWeight: 600, color: 'var(--text-main)' }}>Belum ada data guru ditemukan.</p>
-        </div>
-      ) : (
-        <div className="table-container">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Nama Guru</th>
-                <th>NIP</th>
-                <th>Email Akun</th>
-                <th>Mapel yang Diampu</th>
-                <th>Kelas yang Diajar (SK)</th>
-                <th style={{ textAlign: 'right' }}>Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {guruList.map((g) => (
-                <tr key={g.id}>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div
-                        style={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: '50%',
-                          background: 'var(--primary-light)',
-                          color: 'var(--primary)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontWeight: 700,
-                          fontSize: 12,
-                        }}
-                      >
-                        {g.nama.slice(0, 1).toUpperCase()}
-                      </div>
-                      <span style={{ fontWeight: 600 }}>{g.nama}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <code style={{ fontSize: 12, background: 'var(--bg-subtle)', padding: '2px 6px', borderRadius: 4 }}>
-                      {g.nip}
-                    </code>
-                  </td>
-                  <td>{g.pengguna?.email ?? '-'}</td>
-                  <td>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                      {g.mapelDiampu.length > 0 ? (
-                        g.mapelDiampu.map((m) => (
-                          <Badge key={m.mapel.id} variant="info">
-                            {m.mapel.nama}
-                          </Badge>
-                        ))
-                      ) : (
-                        <span style={{ color: 'var(--text-subtle)', fontSize: 12 }}>Belum diatur</span>
-                      )}
-                    </div>
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 280 }}>
-                      {g.waliUntuk && g.waliUntuk.length > 0 && (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                          {g.waliUntuk.map((w) => (
-                            <Badge key={w.id} variant="success" style={{ fontSize: 11 }}>
-                              ★ Wali {w.nama}
-                            </Badge>
-                          ))}
+      {/* TAB KONTEN: MAPEL */}
+      {activeTab === 'mapel' && (
+        <>
+          {mapel.isError && (
+            <div className="alert alert-danger" style={{ marginBottom: 16 }}>
+              <span>Gagal memuat daftar mata pelajaran. Pastikan server backend sedang aktif.</span>
+            </div>
+          )}
+
+          {mapel.isPending ? (
+            <div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
+              <p>Memuat daftar mata pelajaran…</p>
+            </div>
+          ) : mapelList.length === 0 ? (
+            <div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
+              <p style={{ fontWeight: 600, color: 'var(--text-main)' }}>Belum ada mata pelajaran terdaftar.</p>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
+                Klik tombol &quot;+ Tambah Mapel Baru&quot; untuk menambahkan mata pelajaran.
+              </p>
+            </div>
+          ) : (
+            <div className="table-container">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 120 }}>Kode Mapel</th>
+                    <th>Nama Mata Pelajaran</th>
+                    <th>Kelompok Kurikulum</th>
+                    <th style={{ textAlign: 'center', width: 140 }}>Guru Pengampu</th>
+                    <th style={{ textAlign: 'center', width: 140 }}>Jadwal Terkait</th>
+                    <th style={{ textAlign: 'right', width: 160 }}>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mapelList.map((m) => (
+                    <tr key={m.id}>
+                      <td>
+                        <code
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 700,
+                            color: 'var(--primary)',
+                            background: 'var(--primary-light)',
+                            padding: '2px 8px',
+                            borderRadius: 4,
+                          }}
+                        >
+                          {m.kode}
+                        </code>
+                      </td>
+                      <td>
+                        <span style={{ fontWeight: 600 }}>{m.nama}</span>
+                      </td>
+                      <td>
+                        <Badge variant="neutral">{m.kelompok || 'Umum'}</Badge>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span style={{ fontSize: 13, fontWeight: 600 }}>
+                          {m._count?.diampu ?? 0} Guru
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span style={{ fontSize: 13, fontWeight: 600 }}>
+                          {m._count?.jadwal ?? 0} Sesi
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            style={{ fontSize: 12, padding: '4px 10px' }}
+                            onClick={() => {
+                              setEditMapelItem(m);
+                              setEditMapelKode(m.kode);
+                              setEditMapelNama(m.nama);
+                              setEditMapelKelompok(m.kelompok || '');
+                            }}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-outline btn-sm"
+                            style={{ fontSize: 12, padding: '4px 10px', color: 'var(--danger)', borderColor: 'var(--danger)' }}
+                            onClick={() => setHapusMapelTarget(m)}
+                          >
+                            Hapus
+                          </button>
                         </div>
-                      )}
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                        {g.rombelDiampu && g.rombelDiampu.length > 0 ? (
-                          g.rombelDiampu.map((r) => (
-                            <span
-                              key={r.id}
-                              title={`Mengajar ${r.mapels.join(', ')} di kelas ${r.nama}`}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                padding: '2px 6px',
-                                borderRadius: 4,
-                                fontSize: 11,
-                                fontWeight: 600,
-                                background: 'var(--bg-subtle)',
-                                border: '1px solid var(--border)',
-                                color: 'var(--text-main)',
-                              }}
-                            >
-                              {r.nama}
-                            </span>
-                          ))
-                        ) : (
-                          <span style={{ color: 'var(--text-subtle)', fontSize: 12 }}>-</span>
-                        )}
-                      </div>
-                    </div>
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        style={{ fontSize: 12, padding: '4px 8px' }}
-                        onClick={() => {
-                          setEditGuru(g);
-                          setEditGuruNama(g.nama);
-                          setEditGuruNip(g.nip);
-                        }}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-outline btn-sm"
-                        style={{ fontSize: 12, padding: '4px 8px' }}
-                        onClick={() => setEditMapel(g)}
-                      >
-                        Atur Mapel
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
 
       {/* Modal Tambah Guru */}
@@ -414,7 +705,7 @@ export default function GuruPage() {
         </form>
       </Modal>
 
-      {/* Modal Atur Mapel */}
+      {/* Modal Atur Mapel Guru */}
       {editMapel && (
         <Modal
           isOpen={true}
@@ -545,6 +836,234 @@ export default function GuruPage() {
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* Modal Konfirmasi Hapus / Arsipkan Guru */}
+      {hapusGuruTarget && (
+        <Modal
+          isOpen={true}
+          onClose={() => setHapusGuruTarget(null)}
+          title="Hapus / Arsipkan Guru"
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <p style={{ fontSize: 14 }}>
+              Apakah Anda yakin ingin menghapus / mengarsipkan guru <strong>{hapusGuruTarget.nama}</strong> (NIP: {hapusGuruTarget.nip})?
+            </p>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              Data guru akan dinonaktifkan dari penugasan aktif. Seluruh rekam jejak jadwal mengajar, nilai, dan absensi yang pernah dibuat guru ini tetap tersimpan aman di sistem.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={() => setHapusGuruTarget(null)}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                disabled={hapusGuruMutasi.isPending}
+                onClick={() => hapusGuruMutasi.mutate(hapusGuruTarget.id)}
+              >
+                {hapusGuruMutasi.isPending ? 'Menonaktifkan…' : 'Ya, Hapus Guru'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal Tambah Mapel */}
+      {showAddMapelModal && (
+        <Modal
+          isOpen={true}
+          onClose={() => setShowAddMapelModal(false)}
+          title="Tambah Mata Pelajaran Baru"
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!addMapelKode.trim() || !addMapelNama.trim()) {
+                alert('Kode dan nama mata pelajaran wajib diisi');
+                return;
+              }
+              tambahMapelMutasi.mutate({
+                kode: addMapelKode.trim().toUpperCase(),
+                nama: addMapelNama.trim(),
+                kelompok: addMapelKelompok.trim() || undefined,
+              });
+            }}
+            style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
+          >
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Kode Mapel (Singkat) *</label>
+              <input
+                className="input"
+                value={addMapelKode}
+                onChange={(e) => setAddMapelKode(e.target.value.toUpperCase())}
+                placeholder="Contoh: MAT, IPA, BIN, PAI"
+                required
+              />
+            </div>
+
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Nama Mata Pelajaran *</label>
+              <input
+                className="input"
+                value={addMapelNama}
+                onChange={(e) => setAddMapelNama(e.target.value)}
+                placeholder="Contoh: Matematika, Ilmu Pengetahuan Alam"
+                required
+              />
+            </div>
+
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Kelompok Kurikulum</label>
+              <select
+                className="input"
+                value={addMapelKelompok}
+                onChange={(e) => setAddMapelKelompok(e.target.value)}
+              >
+                <option value="Kelompok A (Umum)">Kelompok A (Umum)</option>
+                <option value="Kelompok B (Muatan Khusus)">Kelompok B (Muatan Khusus)</option>
+                <option value="Muatan Lokal">Muatan Lokal</option>
+                <option value="Bimbingan Konseling">Bimbingan Konseling</option>
+                <option value="Ekstrakurikuler">Ekstrakurikuler</option>
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={() => setShowAddMapelModal(false)}
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={tambahMapelMutasi.isPending}
+              >
+                {tambahMapelMutasi.isPending ? 'Menyimpan…' : 'Simpan Mapel'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Modal Edit Mapel */}
+      {editMapelItem && (
+        <Modal
+          isOpen={true}
+          onClose={() => setEditMapelItem(null)}
+          title={`Edit Mata Pelajaran: ${editMapelItem.nama}`}
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!editMapelKode.trim() || !editMapelNama.trim()) {
+                alert('Kode dan nama mata pelajaran wajib diisi');
+                return;
+              }
+              updateMapelMutasi.mutate({
+                id: editMapelItem.id,
+                kode: editMapelKode.trim().toUpperCase(),
+                nama: editMapelNama.trim(),
+                kelompok: editMapelKelompok.trim() || undefined,
+              });
+            }}
+            style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
+          >
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Kode Mapel (Singkat) *</label>
+              <input
+                className="input"
+                value={editMapelKode}
+                onChange={(e) => setEditMapelKode(e.target.value.toUpperCase())}
+                placeholder="Contoh: MAT, IPA, BIN"
+                required
+              />
+            </div>
+
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Nama Mata Pelajaran *</label>
+              <input
+                className="input"
+                value={editMapelNama}
+                onChange={(e) => setEditMapelNama(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Kelompok Kurikulum</label>
+              <select
+                className="input"
+                value={editMapelKelompok}
+                onChange={(e) => setEditMapelKelompok(e.target.value)}
+              >
+                <option value="Kelompok A (Umum)">Kelompok A (Umum)</option>
+                <option value="Kelompok B (Muatan Khusus)">Kelompok B (Muatan Khusus)</option>
+                <option value="Muatan Lokal">Muatan Lokal</option>
+                <option value="Bimbingan Konseling">Bimbingan Konseling</option>
+                <option value="Ekstrakurikuler">Ekstrakurikuler</option>
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={() => setEditMapelItem(null)}
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={updateMapelMutasi.isPending}
+              >
+                {updateMapelMutasi.isPending ? 'Menyimpan…' : 'Simpan Perubahan'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Modal Konfirmasi Hapus Mapel */}
+      {hapusMapelTarget && (
+        <Modal
+          isOpen={true}
+          onClose={() => setHapusMapelTarget(null)}
+          title="Hapus Mata Pelajaran"
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <p style={{ fontSize: 14 }}>
+              Apakah Anda yakin ingin menghapus mata pelajaran <strong>{hapusMapelTarget.nama}</strong> ({hapusMapelTarget.kode})?
+            </p>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              Mata pelajaran hanya dapat dihapus jika belum memiliki riwayat jadwal atau nilai siswa di sistem demi menjaga integritas data akademik.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={() => setHapusMapelTarget(null)}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                disabled={hapusMapelMutasi.isPending}
+                onClick={() => hapusMapelMutasi.mutate(hapusMapelTarget.id)}
+              >
+                {hapusMapelMutasi.isPending ? 'Menghapus…' : 'Ya, Hapus Mapel'}
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
     </div>

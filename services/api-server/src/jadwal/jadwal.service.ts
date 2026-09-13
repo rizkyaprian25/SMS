@@ -58,6 +58,20 @@ export class JadwalService {
     return { mulai, selesai };
   }
 
+  async cekBentrok(dto: CreateJadwalDto, kecualiId?: string) {
+    try {
+      await this.pastikanTidakBentrok(dto, kecualiId);
+      return { data: { bentrok: false } };
+    } catch (err: any) {
+      return {
+        data: {
+          bentrok: true,
+          pesan: err.message,
+        },
+      };
+    }
+  }
+
   async list(query: QueryJadwalDto) {
     const { page, limit, skip } = pageParams({
       page: String(query.page ?? 1),

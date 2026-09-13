@@ -11,3 +11,17 @@ export class CreateMapelDto {
   @IsString()
   kelompok?: string;
 }
+
+export class UpdateMapelDto {
+  @IsOptional()
+  @IsString()
+  kode?: string;
+
+  @IsOptional()
+  @IsString()
+  nama?: string;
+
+  @IsOptional()
+  @IsString()
+  kelompok?: string;
+}

@@ -24,6 +24,11 @@ export class JadwalController {
     return this.jadwal.jadwalSaya(user.guruId, hari);
   }
 
+  @Post('jadwal/cek-bentrok')
+  cekBentrok(@Body() dto: CreateJadwalDto, @Query('kecualiId') kecualiId?: string) {
+    return this.jadwal.cekBentrok(dto, kecualiId);
+  }
+
   @Roles('SUPER_ADMIN')
   @Post('jadwal')
   create(@Body() dto: CreateJadwalDto) {

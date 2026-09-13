@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { RombelService } from './rombel.service';
 import { CreateRombelDto } from './dto/create-rombel.dto';
 import { QueryRombelDto, QueryRombelSiswaDto } from './dto/query-rombel.dto';
@@ -44,6 +44,12 @@ export class RombelController {
   @Roles('SUPER_ADMIN')
   @Post(':id/arsip')
   archive(@Param('id') id: string) {
+    return this.rombel.archive(id);
+  }
+
+  @Roles('SUPER_ADMIN')
+  @Delete(':id')
+  delete(@Param('id') id: string) {
     return this.rombel.archive(id);
   }
 

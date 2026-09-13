@@ -49,6 +49,12 @@ export class GuruController {
     return this.guru.archive(id);
   }
 
+  @Roles('SUPER_ADMIN')
+  @Delete(':id')
+  delete(@Param('id') id: string) {
+    return this.guru.archive(id);
+  }
+
   @Put(':id/face-enroll')
   enroll(@Param('id') id: string, @CurrentUser() user: JwtPayload, @Body() dto: EnrollWajahDto) {
     return this.guru.enrollWajah(id, user, dto);

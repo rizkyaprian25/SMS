@@ -173,14 +173,14 @@ function SiswaInner() {
   });
 
   const arsipMutasi = useMutation({
-    mutationFn: async (id: string) => (await api.post(`/siswa/${id}/arsip`)).data,
+    mutationFn: async (id: string) => (await api.delete(`/siswa/${id}`)).data,
     onSuccess: () => {
-      toast('Siswa berhasil diarsipkan!', 'success');
+      toast('Siswa berhasil dihapus / dinonaktifkan!', 'success');
       qc.invalidateQueries({ queryKey: ['siswa'] });
       setArsipTarget(null);
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.message ?? 'Gagal mengarsipkan siswa';
+      const msg = err.response?.data?.message ?? 'Gagal menghapus / menonaktifkan siswa';
       toast(Array.isArray(msg) ? msg.join(', ') : msg, 'danger');
     },
   });
@@ -487,11 +487,11 @@ function SiswaInner() {
                         <button
                           type="button"
                           className="btn btn-outline btn-sm"
-                          style={{ padding: '4px 8px', fontSize: 12, color: 'var(--danger)' }}
+                          style={{ padding: '4px 8px', fontSize: 12, color: 'var(--danger)', borderColor: 'var(--danger)' }}
                           onClick={() => setArsipTarget(s)}
-                          title="Arsipkan Siswa"
+                          title="Hapus / Arsipkan Siswa"
                         >
-                          Arsip
+                          Hapus
                         </button>
                       </div>
                     </td>
@@ -718,18 +718,18 @@ function SiswaInner() {
         </form>
       </Modal>
 
-      {/* Modal Konfirmasi Arsip Siswa */}
+      {/* Modal Konfirmasi Hapus / Arsip Siswa */}
       <Modal
         isOpen={!!arsipTarget}
         onClose={() => setArsipTarget(null)}
-        title="Arsipkan Data Siswa"
+        title="Hapus / Arsipkan Data Siswa"
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <p style={{ fontSize: 14 }}>
-            Apakah Anda yakin ingin mengarsipkan siswa <strong>{arsipTarget?.nama}</strong> (NISN: {arsipTarget?.nisn})?
+            Apakah Anda yakin ingin menghapus / mengarsipkan siswa <strong>{arsipTarget?.nama}</strong> (NISN: {arsipTarget?.nisn})?
           </p>
           <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            Status siswa akan diubah menjadi Non-Aktif. Riwayat nilai dan absensi historis akan tetap tersimpan utuh di sistem.
+            Status siswa akan diubah menjadi Non-Aktif. Riwayat nilai dan absensi historis akan tetap tersimpan aman di database.
           </p>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
             <button
@@ -747,7 +747,7 @@ function SiswaInner() {
                 if (arsipTarget) arsipMutasi.mutate(arsipTarget.id);
               }}
             >
-              {arsipMutasi.isPending ? 'Mengarsipkan…' : 'Ya, Arsipkan Siswa'}
+              {arsipMutasi.isPending ? 'Menghapus…' : 'Ya, Hapus Siswa'}
             </button>
           </div>
         </div>
