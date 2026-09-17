@@ -1,10 +1,57 @@
+# Dependencies & Package Managers
 node_modules/
 dist/
 build/
 .next/
 .dart_tool/
 .flutter-plugins
+.flutter-plugins-dependencies
+
+# Environment & Sensitive Configs
 .env
 .env.local
+.env.*.local
+*.pem
+*.key
+
+# Logs & Testing
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 coverage/
+
+# AI Assistants, Agent Rules & IDE Plugins
+.opencode/
+.agents/
+.gemini/
+.claude/
+.cursor/
+.cursorrules
+.cline/
+.roo/
+.windsurf/
+.system_generated/
+scratch/
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+
+# Ignore all Markdown files (.md) across root and all subdirectories
+*.md
+**/*.md
+
+# EXCEPT README.md files (root & sub-packages/apps)
+!README.md
+!**/README.md
+!readme.md
+!**/readme.md
+!README-*.md
+!**/README-*.md
+
+# Operating System & Editors
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+*.swo
