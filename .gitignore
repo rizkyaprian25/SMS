@@ -22,6 +22,7 @@ yarn-error.log*
 coverage/
 
 # AI Assistants, Agent Rules & IDE Plugins
+opencode.json
 .opencode/
 .agents/
 .gemini/
