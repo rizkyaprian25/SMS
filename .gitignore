@@ -36,6 +36,9 @@ scratch/
 AGENTS.md
 CLAUDE.md
 GEMINI.md
+SoftwareEngineer.md
+implementation_plan.md
+walkthrough.md
 
 # Ignore all Markdown files (.md) across root and all subdirectories
 *.md

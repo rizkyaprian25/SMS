@@ -3,6 +3,7 @@ import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 export const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1',
   withCredentials: true,
+  timeout: 15000, // Timeout 15s mencegah request hanging tanpa batas
 });
 
 const TOKEN_KEY = 'sms_access_token';
@@ -47,27 +48,46 @@ api.interceptors.request.use((cfg) => {
 });
 
 // Access 15 mnt mati -> tukar refresh cookie sekali -> ulangi request.
-// Lihat docs/08-auth-rbac-multidevice.md
+// Retry transien untuk network/timeout pada request idempoten (GET) sesuai SoftwareEngineer.md.
 api.interceptors.response.use(
   (res) => res,
   async (err: AxiosError) => {
-    const cfg = err.config as (InternalAxiosRequestConfig & { _smsRetry?: boolean }) | undefined;
+    const cfg = err.config as (InternalAxiosRequestConfig & { _smsRetry?: boolean; _smsNetRetryCount?: number }) | undefined;
+    if (!cfg) throw err;
+
+    // 1. Tangani 401 token refresh
     const perluRefresh =
-      err.response?.status === 401 && cfg && !cfg._smsRetry && !cfg.url?.includes('/auth/refresh');
-    if (!perluRefresh || !cfg) throw err;
-    cfg._smsRetry = true;
-    try {
-      const r = await api.post<{ accessToken: string }>('/auth/refresh');
-      setAccessToken(r.data.accessToken);
-      cfg.headers.Authorization = `Bearer ${r.data.accessToken}`;
-      return api(cfg);
-    } catch {
-      setAccessToken(null);
-      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-        window.location.href = '/login';
+      err.response?.status === 401 && !cfg._smsRetry && !cfg.url?.includes('/auth/refresh');
+    if (perluRefresh) {
+      cfg._smsRetry = true;
+      try {
+        const r = await api.post<{ accessToken: string }>('/auth/refresh');
+        setAccessToken(r.data.accessToken);
+        cfg.headers.Authorization = `Bearer ${r.data.accessToken}`;
+        return api(cfg);
+      } catch {
+        setAccessToken(null);
+        if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+          window.location.href = '/login';
+        }
+        throw err;
       }
-      throw err;
     }
+
+    // 2. Retry transien untuk kegagalan koneksi/timeout pada request idempoten (GET)
+    const isNetworkOrTimeout = !err.response || err.code === 'ECONNABORTED';
+    const isGet = (cfg.method ?? 'get').toLowerCase() === 'get';
+    const netRetryCount = cfg._smsNetRetryCount ?? 0;
+
+    if (isNetworkOrTimeout && isGet && netRetryCount < 1) {
+      cfg._smsNetRetryCount = netRetryCount + 1;
+      // Exponential backoff dengan full jitter (500ms + random 0-300ms)
+      const delay = 500 + Math.floor(Math.random() * 300);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      return api(cfg);
+    }
+
+    throw err;
   },
 );
 
