@@ -7,7 +7,7 @@ import '../../core/theme/app_colors.dart';
 import 'nilai_repository.dart';
 import 'nilai_provider.dart';
 
-const _jenisList = ['TUGAS 1', 'TUGAS 2', 'UTS', 'UAS', 'SUMATIF'];
+const _jenisList = ['TUGAS', 'HARIAN', 'UTS', 'UAS', 'SUMATIF'];
 const _semesterList = ['GANJIL', 'GENAP'];
 const double _kkmStandar = 75.0;
 
@@ -23,7 +23,7 @@ class NilaiScreen extends ConsumerStatefulWidget {
 class _NilaiScreenState extends ConsumerState<NilaiScreen> {
   String? _mapelId;
   String _semesterVal = 'GANJIL';
-  String _jenisVal = 'TUGAS 1';
+  String _jenisVal = 'TUGAS';
   String? _tahunAjaranId;
   final Map<String, double> _nilai = {};
   String _info = '';
@@ -75,7 +75,7 @@ class _NilaiScreenState extends ConsumerState<NilaiScreen> {
         mapelId: _mapelId!,
         tahunAjaranId: _tahunAjaranId!,
         semester: _semesterVal,
-        jenis: _jenisVal.replaceAll(' ', '_'),
+        jenis: _jenisVal,
         nilai: _nilai,
       );
       if (!mounted) return;

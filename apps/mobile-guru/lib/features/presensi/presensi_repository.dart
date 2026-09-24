@@ -85,7 +85,7 @@ class DioPresensiRepository implements PresensiRepository {
     double? lng,
   }) async {
     await api.post('/absensi-guru/masuk', body: {
-      'face_score': faceScore,
+      'faceScore': faceScore,
       'liveness': liveness,
       if (lat != null) 'lat': lat,
       if (lng != null) 'lng': lng,

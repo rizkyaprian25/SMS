@@ -92,13 +92,13 @@ class DioNilaiRepository implements NilaiRepository {
     required Map<String, double> nilai,
   }) async {
     await api.post('/nilai/bulk', body: {
-      'mapel_id': mapelId,
-      'tahun_ajaran_id': tahunAjaranId,
+      'mapelId': mapelId,
+      'tahunAjaranId': tahunAjaranId,
       'semester': semester,
       'jenis': jenis,
       'items': [
         for (final e in nilai.entries)
-          {'siswa_id': e.key, 'nilai': e.value},
+          {'siswaId': e.key, 'nilai': e.value},
       ],
     });
   }

@@ -148,42 +148,109 @@ export default function LoginPage() {
               {loading ? 'Memproses...' : 'Masuk ke Dashboard'}
             </button>
 
-            <button
-              id="btn-quick-admin-login"
-              type="button"
-              className="btn btn-outline"
-              style={{ width: '100%', marginTop: 10, padding: '10px 16px', fontSize: 13, fontWeight: 600 }}
-              disabled={loading}
-              onClick={async () => {
-                setErrorMsg('');
-                setSuccessMsg('');
-                setLoading(true);
-                try {
-                  const res = await api.post('/auth/login', {
-                    email: 'admin@sekolah.sch.id',
-                    password: 'Admin123!',
-                  });
-                  const token = res.data?.data?.accessToken ?? res.data?.accessToken ?? null;
-                  setAccessToken(token);
-                  setSuccessMsg('Login berhasil! Mengalihkan ke dashboard...');
-                  setTimeout(() => {
-                    window.location.href = '/rombel';
-                  }, 400);
-                } catch (err: unknown) {
-                  const errObj = err as { response?: { data?: { message?: string } }; code?: string };
-                  setErrorMsg(errObj.response?.data?.message || 'Login gagal.');
-                } finally {
-                  setLoading(false);
-                }
-              }}
-            >
-              ⚡ Masuk Cepat Demo (Super Admin)
-            </button>
+            <div style={{ marginTop: 18, marginBottom: 8, fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>
+              ⚡ Masuk Cepat Demo Peran
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+              <button
+                type="button"
+                className="btn btn-outline"
+                style={{ padding: '8px 6px', fontSize: 11, fontWeight: 600 }}
+                disabled={loading}
+                onClick={async () => {
+                  setEmail('admin@sekolah.sch.id');
+                  setPassword('Admin123!');
+                  setErrorMsg('');
+                  setSuccessMsg('');
+                  setLoading(true);
+                  try {
+                    const res = await api.post('/auth/login', {
+                      email: 'admin@sekolah.sch.id',
+                      password: 'Admin123!',
+                    });
+                    const token = res.data?.data?.accessToken ?? res.data?.accessToken ?? null;
+                    setAccessToken(token);
+                    setSuccessMsg('Login Super Admin sukses!');
+                    setTimeout(() => { window.location.href = '/'; }, 300);
+                  } catch (err: unknown) {
+                    const errObj = err as { response?: { data?: { message?: string } } };
+                    setErrorMsg(errObj.response?.data?.message || 'Login gagal.');
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+              >
+                Super Admin
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-outline"
+                style={{ padding: '8px 6px', fontSize: 11, fontWeight: 600 }}
+                disabled={loading}
+                onClick={async () => {
+                  setEmail('kepsek@sekolah.sch.id');
+                  setPassword('Guru123!');
+                  setErrorMsg('');
+                  setSuccessMsg('');
+                  setLoading(true);
+                  try {
+                    const res = await api.post('/auth/login', {
+                      email: 'kepsek@sekolah.sch.id',
+                      password: 'Guru123!',
+                    });
+                    const token = res.data?.data?.accessToken ?? res.data?.accessToken ?? null;
+                    setAccessToken(token);
+                    setSuccessMsg('Login Kepala Sekolah sukses!');
+                    setTimeout(() => { window.location.href = '/absensi-guru'; }, 300);
+                  } catch (err: unknown) {
+                    const errObj = err as { response?: { data?: { message?: string } } };
+                    setErrorMsg(errObj.response?.data?.message || 'Login gagal.');
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+              >
+                Kepala Sekolah
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-outline"
+                style={{ padding: '8px 6px', fontSize: 11, fontWeight: 600 }}
+                disabled={loading}
+                onClick={async () => {
+                  setEmail('guru@sekolah.sch.id');
+                  setPassword('Guru123!');
+                  setErrorMsg('');
+                  setSuccessMsg('');
+                  setLoading(true);
+                  try {
+                    const res = await api.post('/auth/login', {
+                      email: 'guru@sekolah.sch.id',
+                      password: 'Guru123!',
+                    });
+                    const token = res.data?.data?.accessToken ?? res.data?.accessToken ?? null;
+                    setAccessToken(token);
+                    setSuccessMsg('Login Guru sukses!');
+                    setTimeout(() => { window.location.href = '/jadwal'; }, 300);
+                  } catch (err: unknown) {
+                    const errObj = err as { response?: { data?: { message?: string } } };
+                    setErrorMsg(errObj.response?.data?.message || 'Login gagal.');
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+              >
+                Guru / Wali
+              </button>
+            </div>
           </form>
 
           <div
             style={{
-              marginTop: 24,
+              marginTop: 20,
               padding: '12px 14px',
               backgroundColor: 'var(--bg-subtle)',
               borderRadius: 'var(--radius-sm)',
@@ -192,9 +259,11 @@ export default function LoginPage() {
               lineHeight: 1.5,
             }}
           >
-            <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>Akun Pengujian Default:</span>
+            <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>Akun Pengujian Terdaftar:</span>
             <br />
-            Email: <code>admin@sekolah.sch.id</code> &bull; Sandi: <code>Admin123!</code>
+            &bull; Admin: <code>admin@sekolah.sch.id</code> (Sandi: <code>Admin123!</code>)
+            <br />
+            &bull; Guru / Kepsek: Sandi default <code>Guru123!</code>
           </div>
         </div>
       </div>

@@ -48,13 +48,13 @@ class AbsensiRepository {
   }) async {
     await api.post('/absensi/bulk', body: {
       'tanggal': tanggal,
-      'rombel_id': rombelId,
-      'mapel_id': mapelId,
-      'jam_ke': jamKe,
-      if (alasanOverride != null) 'alasan_override': alasanOverride,
+      'rombelId': rombelId,
+      'mapelId': mapelId,
+      'jamKe': jamKe,
+      if (alasanOverride != null) 'alasanOverride': alasanOverride,
       'items': [
         for (final e in status.entries)
-          {'siswa_id': e.key, 'status': e.value},
+          {'siswaId': e.key, 'status': e.value},
       ],
     });
   }

@@ -57,11 +57,13 @@ export class GuruController {
 
   @Put(':id/face-enroll')
   enroll(@Param('id') id: string, @CurrentUser() user: JwtPayload, @Body() dto: EnrollWajahDto) {
-    return this.guru.enrollWajah(id, user, dto);
+    const targetId = id === 'me' ? (user.guruId ?? id) : id;
+    return this.guru.enrollWajah(targetId, user, dto);
   }
 
   @Delete(':id/face')
   hapusWajah(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
-    return this.guru.hapusWajah(id, user);
+    const targetId = id === 'me' ? (user.guruId ?? id) : id;
+    return this.guru.hapusWajah(targetId, user);
   }
 }

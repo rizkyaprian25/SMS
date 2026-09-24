@@ -19,6 +19,11 @@ export class AbsensiGuruController {
     return this.presensi.masuk(user, dto);
   }
 
+  @Get('hari-ini')
+  hariIni(@CurrentUser() user: JwtPayload) {
+    return this.presensi.hariIni(user);
+  }
+
   @Post('pulang')
   pulang(@CurrentUser() user: JwtPayload) {
     return this.presensi.pulang(user);

@@ -103,6 +103,41 @@ class _PresensiScreenState extends ConsumerState<PresensiScreen> {
     setState(() => _proses = 'Memverifikasi wajah & lokasi…');
     try {
       final pos = await _getLokasi();
+
+      // Deteksi anti-kecurangan: cegah presensi otomatis jika menggunakan Fake GPS
+      if (pos != null && pos.isMocked) {
+        if (!mounted) return;
+        setState(() => _proses = '');
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: AppColors.danger),
+                SizedBox(width: 8),
+                Text('Lokasi Tiruan Terdeteksi', style: TextStyle(fontSize: 16)),
+              ],
+            ),
+            content: const Text(
+              'Aplikasi mendeteksi adanya penggunaan Fake GPS atau lokasi tiruan pada perangkat. '
+              'Presensi wajah otomatis dibatalkan dan dialihkan ke pengajuan Fallback Manual '
+              'untuk diverifikasi secara resmi oleh Kepala Sekolah.',
+              style: TextStyle(fontSize: 13),
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _fallback('Terdeteksi penggunaan aplikasi lokasi tiruan (Fake GPS)');
+                },
+                child: const Text('Lanjutkan ke Fallback'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+
       final (score, liveness) = await _scanWajah();
 
       await ref.read(presensiRepositoryProvider).masuk(
@@ -155,8 +190,8 @@ class _PresensiScreenState extends ConsumerState<PresensiScreen> {
     }
   }
 
-  Future<void> _fallback() async {
-    final ctrl = TextEditingController();
+  Future<void> _fallback([String? alasanAwal]) async {
+    final ctrl = TextEditingController(text: alasanAwal ?? '');
     final alasan = await showDialog<String>(
       context: context,
       builder: (_) => AlertDialog(
