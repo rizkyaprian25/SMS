@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
@@ -70,7 +71,7 @@ class _PresensiScreenState extends ConsumerState<PresensiScreen> {
   }
 
   Future<void> _cekLokasi() async {
-    final pos = await _getLokasi();
+    final pos = await _getLokasi(mintaIzin: false);
     if (!mounted) return;
     setState(() {
       _currentPosition = pos;
@@ -78,11 +79,185 @@ class _PresensiScreenState extends ConsumerState<PresensiScreen> {
     });
   }
 
-  Future<Position?> _getLokasi() async {
+  Future<bool> _tampilkanPrePermissionSheet() async {
+    final res = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryLight,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(Icons.security_rounded, color: AppColors.primary, size: 26),
+                  ),
+                  const SizedBox(width: 14),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Izin Akses Presensi Mandiri',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Kepatuhan Standar Privasi & Keamanan',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'Agar presensi guru tercatat sah dan akurat, aplikasi SMP Negeri memerlukan akses perangkat berikut:',
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.4),
+              ),
+              const SizedBox(height: 16),
+              _buildPermissionTile(
+                icon: Icons.location_on_rounded,
+                color: AppColors.info,
+                title: 'Lokasi Presisi (GPS)',
+                description: 'Memastikan Anda berada di lingkungan atau radius gerbang sekolah saat presensi.',
+              ),
+              const SizedBox(height: 12),
+              _buildPermissionTile(
+                icon: Icons.camera_alt_rounded,
+                color: AppColors.primary,
+                title: 'Kamera Wajah & Liveness',
+                description: 'Memindai biometrik wajah on-device dengan enkripsi AES-256 (tanpa upload foto mentah).',
+              ),
+              const SizedBox(height: 24),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 48),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  Navigator.pop(ctx, true);
+                },
+                child: const Text(
+                  'Saya Mengerti & Berikan Izin',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Center(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text(
+                    'Batal / Nanti Saja',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    return res ?? false;
+  }
+
+  Widget _buildPermissionTile({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String description,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  description,
+                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.3),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<Position?> _getLokasi({bool mintaIzin = true}) async {
     try {
       final perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
-        await Geolocator.requestPermission();
+        if (!mintaIzin) return null;
+        if (!mounted) return null;
+        final disetujui = await _tampilkanPrePermissionSheet();
+        if (!disetujui) return null;
+        final res = await Geolocator.requestPermission();
+        if (res == LocationPermission.denied || res == LocationPermission.deniedForever) {
+          return null;
+        }
       }
       return await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
@@ -100,9 +275,10 @@ class _PresensiScreenState extends ConsumerState<PresensiScreen> {
   }
 
   Future<void> _presensiMasuk() async {
+    HapticFeedback.lightImpact();
     setState(() => _proses = 'Memverifikasi wajah & lokasi…');
     try {
-      final pos = await _getLokasi();
+      final pos = await _getLokasi(mintaIzin: true);
 
       // Deteksi anti-kecurangan: cegah presensi otomatis jika menggunakan Fake GPS
       if (pos != null && pos.isMocked) {

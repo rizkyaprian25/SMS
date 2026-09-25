@@ -73,6 +73,11 @@
   padding: 0;
 }
 
+html, body {
+  max-width: 100vw;
+  overflow-x: hidden; /* Anti-horizontal scroll leak sesuai standar Apple HIG & SOP */
+}
+
 body {
   font-family: var(--font-sans);
   background-color: var(--bg-app);
@@ -81,6 +86,21 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+}
+
+/* Liquid Glass & Materials Utilities (Apple HIG) */
+.liquid-glass {
+  background-color: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+}
+
+.liquid-glass-dark {
+  background-color: rgba(15, 23, 42, 0.78);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 code, kbd, samp, pre {
@@ -588,24 +608,30 @@ code, kbd, samp, pre {
 }
 
 /* ==========================================================================
-   Buttons (Ergonomic, Touch-friendly, Crisp)
+   Buttons (Ergonomic, Touch-friendly, Crisp — Apple HIG)
    ========================================================================== */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  min-height: 40px; /* Target sentuh ergonomis Apple HIG */
   padding: 8px 16px;
   border-radius: var(--radius-sm);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   border: 1px solid transparent;
-  transition: all 0.15s ease;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   text-decoration: none;
   line-height: 1.4;
   white-space: nowrap;
   user-select: none;
+}
+
+.btn:focus-visible, .input:focus-visible, .select:focus-visible, .form-control:focus-visible, button:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 .btn:active {
@@ -619,7 +645,8 @@ code, kbd, samp, pre {
 }
 .btn-primary:hover {
   background-color: var(--primary-hover);
-  box-shadow: 0 2px 6px rgba(79, 70, 229, 0.35);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
+  transform: translateY(-1px);
 }
 
 .btn-secondary {
@@ -631,6 +658,7 @@ code, kbd, samp, pre {
 .btn-secondary:hover {
   background-color: var(--bg-subtle);
   border-color: #cbd5e1;
+  transform: translateY(-1px);
 }
 
 .btn-danger {
@@ -640,6 +668,7 @@ code, kbd, samp, pre {
 }
 .btn-danger:hover {
   background-color: #dc2626;
+  transform: translateY(-1px);
 }
 
 .btn-success {
@@ -648,6 +677,7 @@ code, kbd, samp, pre {
 }
 .btn-success:hover {
   background-color: #059669;
+  transform: translateY(-1px);
 }
 
 .btn-outline {
@@ -660,7 +690,8 @@ code, kbd, samp, pre {
 }
 
 .btn-sm {
-  padding: 6px 12px;
+  min-height: 34px;
+  padding: 5px 12px;
   font-size: 12px;
   border-radius: var(--radius-xs);
 }
@@ -689,6 +720,7 @@ code, kbd, samp, pre {
 
 .form-control, .input, .select, .input-control, .select-control, textarea {
   width: 100%;
+  min-height: 42px; /* Ergonomis sentuhan & presisi mengetik */
   padding: 9px 13px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
