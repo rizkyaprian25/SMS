@@ -69,6 +69,41 @@ export interface AbsensiBulkRequest {
   items: AbsensiBulkItem[];
 }
 
+export interface BobotNilaiItem {
+  id?: string;
+  guru_id?: string | null;
+  mapel_id: string;
+  tahun_ajaran_id: string;
+  bobot_tugas: number;
+  bobot_harian: number;
+  bobot_uts: number;
+  bobot_uas: number;
+}
+
+export interface UpsertBobotNilaiRequest {
+  mapel_id: string;
+  tahun_ajaran_id: string;
+  guru_id?: string;
+  bobot_tugas: number;
+  bobot_harian: number;
+  bobot_uts: number;
+  bobot_uas: number;
+}
+
+export interface NilaiBulkItem {
+  siswa_id: string;
+  nilai: number;
+}
+
+export interface NilaiBulkRequest {
+  mapel_id: string;
+  tahun_ajaran_id: string;
+  semester: Semester;
+  jenis: JenisNilai;
+  judul?: string;
+  items: NilaiBulkItem[];
+}
+
 // === FASE 2: Siswa, Orang Tua, Tugas, & Percakapan ===
 
 export const HubunganOrtu = {

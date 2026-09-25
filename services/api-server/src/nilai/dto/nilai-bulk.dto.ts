@@ -4,8 +4,11 @@ import {
   IsArray,
   IsEnum,
   IsNumber,
+  IsOptional,
+  IsString,
   IsUUID,
   Max,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -34,6 +37,11 @@ export class NilaiBulkDto {
 
   @IsEnum(JenisNilai)
   jenis!: JenisNilai;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  judul?: string;
 
   @IsArray()
   @ArrayMinSize(1)

@@ -17,6 +17,8 @@ export const qk = {
   absensiGuru: (dari: string, sampai: string) => ['absensi-guru', dari, sampai] as const,
   nilai: (rombelId: string, mapelId: string, semester: string, jenis: string) =>
     ['nilai', rombelId, mapelId, semester, jenis] as const,
+  bobotNilai: (mapelId: string, tahunAjaranId: string) =>
+    ['bobot-nilai', mapelId, tahunAjaranId] as const,
   perizinan: (status: string) => ['perizinan', status] as const,
   pengumuman: ['pengumuman'] as const,
   pelanggaran: (siswaId: string) => ['pelanggaran', siswaId] as const,

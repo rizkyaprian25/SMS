@@ -5,7 +5,7 @@ import type { JwtPayload } from '../common/decorators/current-user.decorator';
 const admin: JwtPayload = { sub: 'u9', role: 'SUPER_ADMIN', guruId: 'g9' };
 const wali71: JwtPayload = { sub: 'u2', role: 'WALI_KELAS', guruId: 'g1' };
 
-function mockPrisma(nilai: unknown[] = [], waliKelasId: string | null = 'g1') {
+function mockPrisma(nilai: unknown[] = [], waliKelasId: string | null = 'g1', bobot: unknown[] = []) {
   return {
     siswa: {
       findUnique: jest.fn().mockResolvedValue({
@@ -18,12 +18,14 @@ function mockPrisma(nilai: unknown[] = [], waliKelasId: string | null = 'g1') {
     },
     tahunAjaran: { findFirst: jest.fn().mockResolvedValue({ id: 'ta1' }) },
     nilai: { findMany: jest.fn().mockResolvedValue(nilai) },
+    bobotNilai: { findMany: jest.fn().mockResolvedValue(bobot) },
   };
 }
 
-const N = (mapelId: string, nama: string, nilai: number) => ({
+const N = (mapelId: string, nama: string, nilai: number, jenis: 'TUGAS' | 'HARIAN' | 'UTS' | 'UAS' = 'HARIAN') => ({
   mapelId,
   nilai,
+  jenis,
   mapel: { id: mapelId, nama },
 });
 
@@ -39,6 +41,25 @@ describe('RaporService', () => {
       capaian: 'Baik',
     });
     expect(res.data.rataKeseluruhan).toBe(77.5);
+  });
+
+  it('rekap menghitung rata-rata tertimbang berdasarkan bobotNilai kustom guru', async () => {
+    // Tugas: 100 (bobot 20%), UTS: 80 (bobot 80%) -> (100*20 + 80*80) / 100 = 84
+    const bobotKustom = [
+      {
+        mapelId: 'm1',
+        tahunAjaranId: 'ta1',
+        bobotTugas: 20,
+        bobotHarian: 0,
+        bobotUts: 80,
+        bobotUas: 0,
+      },
+    ];
+    const svc = new RaporService(
+      mockPrisma([N('m1', 'MTK', 100, 'TUGAS'), N('m1', 'MTK', 80, 'UTS')], 'g1', bobotKustom) as never,
+    );
+    const res = await svc.rekap('s1', {}, admin);
+    expect(res.data.mapel[0].rataRata).toBe(84);
   });
 
   it('siswa tidak ada -> 404', async () => {

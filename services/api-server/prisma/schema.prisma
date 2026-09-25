@@ -86,9 +86,10 @@ model TahunAjaran {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  rombel  Rombel[]
-  nilai   Nilai[]
-  riwayat RiwayatKelas[]
+  rombel     Rombel[]
+  nilai      Nilai[]
+  riwayat    RiwayatKelas[]
+  bobotNilai BobotNilai[]
 
   @@map("tahun_ajaran")
 }
@@ -154,6 +155,7 @@ model Guru {
   riwayatProses RiwayatKelas[] @relation("RiwayatOleh")
   tugas       Tugas[]
   percakapan  Percakapan[]  @relation("WaliPercakapan")
+  bobotNilai  BobotNilai[]
 
   @@map("guru")
 }
@@ -217,9 +219,10 @@ model Mapel {
 
   diampu  GuruMapel[]
   jadwal  Jadwal[]
-  absensi Absensi[]
-  nilai   Nilai[]
-  tugas   Tugas[]
+  absensi    Absensi[]
+  nilai      Nilai[]
+  tugas      Tugas[]
+  bobotNilai BobotNilai[]
 
   @@map("mapel")
 }
@@ -306,6 +309,7 @@ model Nilai {
   tahunAjaranId String     @map("tahun_ajaran_id") @db.Uuid
   semester      Semester
   jenis         JenisNilai
+  judul         String?    @db.VarChar(100)
   nilai         Decimal    @db.Decimal(5, 2)
   createdAt     DateTime   @default(now()) @map("created_at")
   updatedAt     DateTime   @updatedAt @map("updated_at")
@@ -315,6 +319,26 @@ model Nilai {
   tahunAjaran TahunAjaran @relation(fields: [tahunAjaranId], references: [id])
 
   @@map("nilai")
+}
+
+model BobotNilai {
+  id            String      @id @default(uuid()) @db.Uuid
+  guruId        String?     @map("guru_id") @db.Uuid
+  mapelId       String      @map("mapel_id") @db.Uuid
+  tahunAjaranId String      @map("tahun_ajaran_id") @db.Uuid
+  bobotTugas    Int         @default(20) @map("bobot_tugas")
+  bobotHarian   Int         @default(30) @map("bobot_harian")
+  bobotUts      Int         @default(25) @map("bobot_uts")
+  bobotUas      Int         @default(25) @map("bobot_uas")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  guru        Guru?       @relation(fields: [guruId], references: [id])
+  mapel       Mapel       @relation(fields: [mapelId], references: [id])
+  tahunAjaran TahunAjaran @relation(fields: [tahunAjaranId], references: [id])
+
+  @@unique([mapelId, tahunAjaranId, guruId])
+  @@map("bobot_nilai")
 }
 
 model Perizinan {

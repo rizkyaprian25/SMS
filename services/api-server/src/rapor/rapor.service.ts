@@ -50,16 +50,86 @@ export class RaporService {
       where: { siswaId, tahunAjaranId, semester },
       include: { mapel: { select: { id: true, nama: true } } },
     });
-    const perMapel = new Map<string, { nama: string; total: number; count: number }>();
+    const mapelIds = [...new Set(rows.map((r) => r.mapelId))];
+    const daftarBobot = await this.prisma.bobotNilai.findMany({
+      where: {
+        mapelId: { in: mapelIds },
+        tahunAjaranId,
+      },
+    });
+
+    const DEFAULT_BOBOT = { bobotTugas: 20, bobotHarian: 30, bobotUts: 25, bobotUas: 25 };
+    const bobotPerMapel = new Map<string, { bobotTugas: number; bobotHarian: number; bobotUts: number; bobotUas: number }>();
+    for (const b of daftarBobot) {
+      bobotPerMapel.set(b.mapelId, {
+        bobotTugas: b.bobotTugas,
+        bobotHarian: b.bobotHarian,
+        bobotUts: b.bobotUts,
+        bobotUas: b.bobotUas,
+      });
+    }
+
+    const perMapel = new Map<
+      string,
+      {
+        nama: string;
+        tugas: number[];
+        harian: number[];
+        uts: number[];
+        uas: number[];
+      }
+    >();
+
     for (const n of rows) {
-      const e = perMapel.get(n.mapelId) ?? { nama: n.mapel.nama, total: 0, count: 0 };
-      e.total += Number(n.nilai);
-      e.count += 1;
+      const e = perMapel.get(n.mapelId) ?? {
+        nama: n.mapel.nama,
+        tugas: [],
+        harian: [],
+        uts: [],
+        uas: [],
+      };
+      const val = Number(n.nilai);
+      if (n.jenis === 'TUGAS') e.tugas.push(val);
+      else if (n.jenis === 'HARIAN') e.harian.push(val);
+      else if (n.jenis === 'UTS') e.uts.push(val);
+      else if (n.jenis === 'UAS') e.uas.push(val);
       perMapel.set(n.mapelId, e);
     }
+
     const mapel: RaporMapel[] = [...perMapel.entries()].map(([mapelId, e]) => {
-      const rataRata = Math.round((e.total / e.count) * 100) / 100;
-      return { mapelId, mapelNama: e.nama, jumlah: e.count, rataRata, capaian: this.capaianUntuk(rataRata) };
+      const bobot = bobotPerMapel.get(mapelId) ?? DEFAULT_BOBOT;
+      let totalSkorTertimbang = 0;
+      let totalBobotAktif = 0;
+      let totalCount = 0;
+
+      const komponen = [
+        { nilaiList: e.tugas, bobotVal: bobot.bobotTugas },
+        { nilaiList: e.harian, bobotVal: bobot.bobotHarian },
+        { nilaiList: e.uts, bobotVal: bobot.bobotUts },
+        { nilaiList: e.uas, bobotVal: bobot.bobotUas },
+      ];
+
+      for (const k of komponen) {
+        if (k.nilaiList.length > 0) {
+          const avg = k.nilaiList.reduce((a, b) => a + b, 0) / k.nilaiList.length;
+          totalSkorTertimbang += avg * k.bobotVal;
+          totalBobotAktif += k.bobotVal;
+          totalCount += k.nilaiList.length;
+        }
+      }
+
+      const rataRata =
+        totalBobotAktif > 0
+          ? Math.round((totalSkorTertimbang / totalBobotAktif) * 100) / 100
+          : 0;
+
+      return {
+        mapelId,
+        mapelNama: e.nama,
+        jumlah: totalCount,
+        rataRata,
+        capaian: this.capaianUntuk(rataRata),
+      };
     });
     const rataKeseluruhan =
       mapel.length === 0

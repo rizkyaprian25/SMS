@@ -14,6 +14,7 @@ interface BarisNilai {
   id: string;
   jenis: string;
   semester: string;
+  judul?: string | null;
   nilai: number | string;
   siswa: { id?: string; nama: string; nisn?: string };
   mapel: { id?: string; nama: string };
@@ -137,6 +138,147 @@ export default function NilaiPage() {
     },
   });
 
+  // Fetch tahun ajaran aktif untuk konteks penilaian
+  const taQuery = useQuery({
+    queryKey: ['tahun-ajaran-aktif'],
+    queryFn: async () => (await api.get('/tahun-ajaran')).data,
+    retry: false,
+  });
+  const taList: any[] = taQuery.data?.data ?? [];
+  const activeTa = taList.find((ta) => ta.isAktif) || taList[0];
+  const activeTaId = activeTa?.id || '';
+
+  // State Modal Pembobotan Nilai Guru
+  const [showBobotModal, setShowBobotModal] = useState(false);
+  const [bobotMapelId, setBobotMapelId] = useState('');
+  const [bobotTugas, setBobotTugas] = useState<number>(20);
+  const [bobotHarian, setBobotHarian] = useState<number>(30);
+  const [bobotUts, setBobotUts] = useState<number>(25);
+  const [bobotUas, setBobotUas] = useState<number>(25);
+
+  const targetBobotMapel = bobotMapelId || mapelId;
+  const bobotQuery = useQuery({
+    queryKey: qk.bobotNilai(targetBobotMapel, activeTaId),
+    queryFn: async () => {
+      if (!targetBobotMapel || !activeTaId) return null;
+      return (await api.get('/nilai/bobot', { params: { mapelId: targetBobotMapel, tahunAjaranId: activeTaId } })).data;
+    },
+    enabled: Boolean(targetBobotMapel && activeTaId),
+  });
+  const activeBobot = bobotQuery.data?.data;
+
+  // Buka modal pembobotan dengan nilai awal
+  const handleOpenBobotModal = () => {
+    const targetId = mapelId || (mapelList[0]?.id ?? '');
+    setBobotMapelId(targetId);
+    if (activeBobot) {
+      setBobotTugas(activeBobot.bobotTugas);
+      setBobotHarian(activeBobot.bobotHarian);
+      setBobotUts(activeBobot.bobotUts);
+      setBobotUas(activeBobot.bobotUas);
+    } else {
+      setBobotTugas(20);
+      setBobotHarian(30);
+      setBobotUts(25);
+      setBobotUas(25);
+    }
+    setShowBobotModal(true);
+  };
+
+  const saveBobotMutation = useMutation({
+    mutationFn: async (payload: {
+      mapelId: string;
+      tahunAjaranId: string;
+      bobotTugas: number;
+      bobotHarian: number;
+      bobotUts: number;
+      bobotUas: number;
+    }) => {
+      return (await api.put('/nilai/bobot', payload)).data;
+    },
+    onSuccess: () => {
+      toast('Bobot persentase penilaian berhasil disimpan!', 'success');
+      qc.invalidateQueries({ queryKey: ['bobot-nilai'] });
+      setShowBobotModal(false);
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.message || 'Gagal menyimpan bobot penilaian';
+      toast(Array.isArray(msg) ? msg.join(', ') : msg, 'danger');
+    },
+  });
+
+  // State Modal Tambah Penilaian / Tugas / Ulangan Baru
+  const [showTambahNilaiModal, setShowTambahNilaiModal] = useState(false);
+  const [tambahRombelId, setTambahRombelId] = useState('');
+  const [tambahMapelId, setTambahMapelId] = useState('');
+  const [tambahSemester, setTambahSemester] = useState('GANJIL');
+  const [tambahJenis, setTambahJenis] = useState('HARIAN');
+  const [tambahJudul, setTambahJudul] = useState('');
+  const [siswaNilaiMap, setSiswaNilaiMap] = useState<Record<string, number | string>>({});
+  const [nilaiSerentak, setNilaiSerentak] = useState<string>('80');
+
+  // Query Siswa untuk Rombel di Modal Tambah Penilaian
+  const modalSiswaQuery = useQuery({
+    queryKey: ['siswa-modal', tambahRombelId],
+    queryFn: async () => {
+      if (!tambahRombelId) return { data: [] };
+      return (await api.get('/siswa', { params: { rombelId: tambahRombelId, limit: 100 } })).data;
+    },
+    enabled: Boolean(tambahRombelId && showTambahNilaiModal),
+  });
+  const modalSiswaList: Array<{ id: string; nama: string; nisn?: string }> = modalSiswaQuery.data?.data ?? [];
+
+  // Buka modal input nilai baru
+  const handleOpenTambahNilaiModal = () => {
+    setTambahRombelId(rombelId || (rombelList[0]?.id ?? ''));
+    setTambahMapelId(mapelId || (mapelList[0]?.id ?? ''));
+    setTambahSemester(semester || 'GANJIL');
+    setTambahJenis(jenis || 'HARIAN');
+    setTambahJudul('');
+    setSiswaNilaiMap({});
+    setShowTambahNilaiModal(true);
+  };
+
+  const saveBulkNilaiMutation = useMutation({
+    mutationFn: async () => {
+      const items = Object.entries(siswaNilaiMap)
+        .filter(([_, val]) => val !== '' && val !== undefined && !isNaN(Number(val)))
+        .map(([siswaId, val]) => ({
+          siswaId,
+          nilai: Number(val),
+        }));
+
+      if (items.length === 0) {
+        throw new Error('Harap masukkan skor nilai minimal untuk 1 siswa!');
+      }
+      if (!tambahMapelId) throw new Error('Pilih mata pelajaran terlebih dahulu!');
+      if (!activeTaId) throw new Error('Tahun ajaran aktif belum ditemukan!');
+
+      return (
+        await api.post('/nilai/bulk', {
+          mapelId: tambahMapelId,
+          tahunAjaranId: activeTaId,
+          semester: tambahSemester,
+          jenis: tambahJenis,
+          judul: tambahJudul.trim() || undefined,
+          items,
+        })
+      ).data;
+    },
+    onSuccess: (res: any) => {
+      const jml = res.data?.tersimpan ?? 0;
+      toast(`Berhasil menyimpan ${jml} nilai siswa untuk asesmen "${tambahJudul || tambahJenis}"!`, 'success');
+      qc.invalidateQueries({ queryKey: ['nilai'] });
+      setShowTambahNilaiModal(false);
+      setTambahJudul('');
+      setSiswaNilaiMap({});
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.message || err.message || 'Gagal menyimpan nilai asesmen';
+      toast(Array.isArray(msg) ? msg.join(', ') : msg, 'danger');
+    },
+  });
+
   const list = q.data?.data ?? [];
 
   // Hitung rata-rata, tertinggi, terendah
@@ -191,7 +333,7 @@ export default function NilaiPage() {
             Pantau capaian nilai formatif &amp; sumatif siswa per rombel dan mata pelajaran.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button
             type="button"
             className="btn btn-outline btn-sm"
@@ -204,7 +346,27 @@ export default function NilaiPage() {
           </button>
           <button
             type="button"
+            className="btn btn-outline btn-sm"
+            onClick={handleOpenBobotModal}
+            title="Atur persentase bobot penilaian mata pelajaran (Tugas, Formatif, UTS, UAS)"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <span>⚙️</span>
+            <span>Atur Bobot Penilaian</span>
+          </button>
+          <button
+            type="button"
             className="btn btn-primary btn-sm"
+            onClick={handleOpenTambahNilaiModal}
+            title="Tambah penilaian / tugas baru / ulangan harian siswa"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <span>➕</span>
+            <span>Input Penilaian Baru</span>
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
             onClick={() => setShowPrintModal(true)}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
           >
@@ -403,6 +565,52 @@ export default function NilaiPage() {
         </div>
       </div>
 
+      {/* Panel Ringkasan Pembobotan Nilai Guru */}
+      <div
+        style={{
+          backgroundColor: '#f8fafc',
+          border: '1px solid var(--border)',
+          borderRadius: 8,
+          padding: '12px 16px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 12,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '1.25rem' }}>⚖️</span>
+          <div style={{ fontSize: '0.875rem' }}>
+            <strong>Bobot Penilaian {selectedMapel?.nama ? `Mapel ${selectedMapel.nama}` : 'Standar'}:</strong>{' '}
+            <span style={{ color: 'var(--text-muted)' }}>
+              Tugas: <strong style={{ color: 'var(--text-main)' }}>{activeBobot?.bobotTugas ?? 20}%</strong> •{' '}
+              Formatif / UH: <strong style={{ color: 'var(--text-main)' }}>{activeBobot?.bobotHarian ?? 30}%</strong> •{' '}
+              UTS: <strong style={{ color: 'var(--text-main)' }}>{activeBobot?.bobotUts ?? 25}%</strong> •{' '}
+              UAS: <strong style={{ color: 'var(--text-main)' }}>{activeBobot?.bobotUas ?? 25}%</strong>
+            </span>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            type="button"
+            className="btn btn-outline btn-sm"
+            onClick={handleOpenBobotModal}
+            style={{ fontSize: '0.75rem', padding: '4px 10px' }}
+          >
+            ⚙️ Konfigurasi Bobot
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={handleOpenTambahNilaiModal}
+            style={{ fontSize: '0.75rem', padding: '4px 10px' }}
+          >
+            ➕ Input Penilaian Baru
+          </button>
+        </div>
+      </div>
+
       {/* Ringkasan Statistik Nilai */}
       <div>
         <h2 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: 12 }}>
@@ -530,10 +738,11 @@ export default function NilaiPage() {
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th style={{ width: '35%' }}>Siswa</th>
+                    <th style={{ width: '28%' }}>Siswa</th>
                     <th>Mata Pelajaran</th>
                     <th style={{ textAlign: 'center' }}>Semester</th>
                     <th style={{ textAlign: 'center' }}>Jenis</th>
+                    <th>Judul / Materi</th>
                     <th style={{ textAlign: 'center' }}>Nilai</th>
                     <th style={{ textAlign: 'center' }}>Status KKM</th>
                     <th className="no-print" style={{ textAlign: 'center', width: 100 }}>Aksi</th>
@@ -590,6 +799,17 @@ export default function NilaiPage() {
                         </td>
                         <td style={{ textAlign: 'center' }}>
                           <Badge variant={getJenisBadge(b.jenis)}>{b.jenis}</Badge>
+                        </td>
+                        <td>
+                          <span
+                            style={{
+                              fontSize: '0.8125rem',
+                              fontWeight: b.judul ? 600 : 400,
+                              color: b.judul ? 'var(--text-main)' : 'var(--text-muted)',
+                            }}
+                          >
+                            {b.judul || '—'}
+                          </span>
                         </td>
                         <td style={{ textAlign: 'center' }}>
                           <span
@@ -801,6 +1021,423 @@ export default function NilaiPage() {
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* Modal Atur Bobot Penilaian Guru */}
+      {showBobotModal && (
+        <Modal
+          isOpen={true}
+          onClose={() => setShowBobotModal(false)}
+          title="Atur Bobot Penilaian Mata Pelajaran"
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const total = Number(bobotTugas) + Number(bobotHarian) + Number(bobotUts) + Number(bobotUas);
+              if (total !== 100) {
+                toast(`Total persentase bobot harus 100% (saat ini ${total}%)`, 'danger');
+                return;
+              }
+              if (!bobotMapelId) {
+                toast('Pilih mata pelajaran terlebih dahulu', 'danger');
+                return;
+              }
+              if (!activeTaId) {
+                toast('Tahun ajaran aktif belum dipilih', 'danger');
+                return;
+              }
+              saveBobotMutation.mutate({
+                mapelId: bobotMapelId,
+                tahunAjaranId: activeTaId,
+                bobotTugas: Number(bobotTugas),
+                bobotHarian: Number(bobotHarian),
+                bobotUts: Number(bobotUts),
+                bobotUas: Number(bobotUas),
+              });
+            }}
+            style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
+          >
+            <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+              Tentukan porsi persentase setiap komponen penilaian untuk perhitungan nilai akhir rapor siswa. Total akumulasi seluruh komponen wajib berjumlah tepat <strong>100%</strong>.
+            </div>
+
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700 }}>
+                MATA PELAJARAN *
+              </label>
+              <select
+                className="select-control"
+                value={bobotMapelId}
+                onChange={(e) => setBobotMapelId(e.target.value)}
+                required
+              >
+                <option value="">-- Pilih Mata Pelajaran --</option>
+                {mapelList.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.nama}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700 }}>
+                  BOBOT TUGAS / PR (%)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  className="input"
+                  value={bobotTugas}
+                  onChange={(e) => setBobotTugas(Number(e.target.value))}
+                  required
+                />
+              </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700 }}>
+                  BOBOT ULANGAN HARIAN / FORMATIF (%)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  className="input"
+                  value={bobotHarian}
+                  onChange={(e) => setBobotHarian(Number(e.target.value))}
+                  required
+                />
+              </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700 }}>
+                  BOBOT UTS / ASESMEN TENGAH (%)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  className="input"
+                  value={bobotUts}
+                  onChange={(e) => setBobotUts(Number(e.target.value))}
+                  required
+                />
+              </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700 }}>
+                  BOBOT UAS / ASESMEN AKHIR (%)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  className="input"
+                  value={bobotUas}
+                  onChange={(e) => setBobotUas(Number(e.target.value))}
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Indikator Total Kalkulasi */}
+            {(() => {
+              const total = Number(bobotTugas) + Number(bobotHarian) + Number(bobotUts) + Number(bobotUas);
+              const isValid = total === 100;
+              return (
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 6,
+                    backgroundColor: isValid ? '#f0fdf4' : '#fef2f2',
+                    border: `1px solid ${isValid ? '#bbf7d0' : '#fecaca'}`,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    fontSize: '0.8125rem',
+                  }}
+                >
+                  <div style={{ color: isValid ? '#15803d' : '#b91c1c', fontWeight: 600 }}>
+                    {isValid
+                      ? '✅ Total Persentase Tepat 100% (Sesuai Syarat)'
+                      : `⚠️ Total Persentase: ${total}% (Harus berjumlah tepat 100%)`}
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    style={{ fontSize: '0.75rem', padding: '2px 8px' }}
+                    onClick={() => {
+                      setBobotTugas(20);
+                      setBobotHarian(30);
+                      setBobotUts(25);
+                      setBobotUas(25);
+                    }}
+                  >
+                    Reset Standar (20:30:25:25)
+                  </button>
+                </div>
+              );
+            })()}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={() => setShowBobotModal(false)}
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={
+                  saveBobotMutation.isPending ||
+                  Number(bobotTugas) + Number(bobotHarian) + Number(bobotUts) + Number(bobotUas) !== 100
+                }
+              >
+                {saveBobotMutation.isPending ? 'Menyimpan…' : 'Simpan Konfigurasi Bobot'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Modal Tambah Penilaian Baru (Tugas / UH / Asesmen Lain) */}
+      {showTambahNilaiModal && (
+        <Modal
+          isOpen={true}
+          onClose={() => setShowTambahNilaiModal(false)}
+          title="Input Penilaian Baru (Tugas / Ulangan Harian / Asesmen)"
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '75vh', overflowY: 'auto' }}>
+            <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+              Buat catatan penilaian baru untuk kelas dan mata pelajaran yang Anda ampu, lalu masukkan skor nilai siswa secara kolektif.
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700 }}>
+                  KELAS / ROMBEL *
+                </label>
+                <select
+                  className="select-control"
+                  value={tambahRombelId}
+                  onChange={(e) => setTambahRombelId(e.target.value)}
+                  required
+                >
+                  <option value="">-- Pilih Kelas --</option>
+                  {rombelList.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      Kelas {r.nama}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700 }}>
+                  MATA PELAJARAN *
+                </label>
+                <select
+                  className="select-control"
+                  value={tambahMapelId}
+                  onChange={(e) => setTambahMapelId(e.target.value)}
+                  required
+                >
+                  <option value="">-- Pilih Mapel --</option>
+                  {mapelList.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.nama}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700 }}>
+                  SEMESTER *
+                </label>
+                <select
+                  className="select-control"
+                  value={tambahSemester}
+                  onChange={(e) => setTambahSemester(e.target.value)}
+                >
+                  <option value="GANJIL">Ganjil</option>
+                  <option value="GENAP">Genap</option>
+                </select>
+              </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700 }}>
+                  JENIS ASESMEN *
+                </label>
+                <select
+                  className="select-control"
+                  value={tambahJenis}
+                  onChange={(e) => setTambahJenis(e.target.value)}
+                >
+                  <option value="HARIAN">Formatif / Ulangan Harian</option>
+                  <option value="TUGAS">Tugas / PR / Mandiri</option>
+                  <option value="UTS">Asesmen Tengah Semester (UTS)</option>
+                  <option value="UAS">Asesmen Akhir Semester (UAS)</option>
+                  <option value="SUMATIF">Sumatif Lingkup Materi</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700 }}>
+                JUDUL / TOPIK ASESMEN (OPSIONAL, MISAL: &ldquo;UH 1 BAB BILANGAN BULAT&rdquo;)
+              </label>
+              <input
+                type="text"
+                className="input"
+                placeholder="Contoh: Ulangan Harian 1, Tugas Bab 2, Remedial UTS..."
+                value={tambahJudul}
+                onChange={(e) => setTambahJudul(e.target.value)}
+              />
+            </div>
+
+            {/* Quick Fill Nilai Serentak */}
+            {modalSiswaList.length > 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '8px 12px',
+                  backgroundColor: '#f1f5f9',
+                  borderRadius: 6,
+                  fontSize: '0.8125rem',
+                }}
+              >
+                <span>⚡ <strong>Isi Cepat:</strong></span>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  style={{ width: 70, padding: '4px 8px', borderRadius: 4, border: '1px solid #cbd5e1' }}
+                  value={nilaiSerentak}
+                  onChange={(e) => setNilaiSerentak(e.target.value)}
+                  placeholder="Skor"
+                />
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    const val = Number(nilaiSerentak);
+                    if (isNaN(val) || val < 0 || val > 100) {
+                      toast('Nilai harus di rentang 0-100', 'danger');
+                      return;
+                    }
+                    const updated: Record<string, number> = {};
+                    modalSiswaList.forEach((s) => {
+                      updated[s.id] = val;
+                    });
+                    setSiswaNilaiMap(updated);
+                    toast(`Semua siswa diisi nilai ${val}`, 'success');
+                  }}
+                  style={{ fontSize: '0.75rem', padding: '3px 8px' }}
+                >
+                  Terapkan ke Semua Siswa ({modalSiswaList.length})
+                </button>
+              </div>
+            )}
+
+            {/* Tabel Input Nilai Siswa */}
+            <div style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+              <div
+                style={{
+                  padding: '8px 12px',
+                  backgroundColor: 'var(--bg-subtle)',
+                  fontWeight: 700,
+                  fontSize: '0.8125rem',
+                  borderBottom: '1px solid var(--border)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <span>Daftar Siswa Kelas Terpilih</span>
+                <span>{modalSiswaList.length} Siswa</span>
+              </div>
+
+              {!tambahRombelId ? (
+                <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
+                  Pilih Kelas / Rombel terlebih dahulu untuk menampilkan daftar siswa.
+                </div>
+              ) : modalSiswaQuery.isPending ? (
+                <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>
+                  ⏳ Memuat siswa rombel...
+                </div>
+              ) : modalSiswaList.length === 0 ? (
+                <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
+                  Belum ada siswa terdaftar di rombel ini.
+                </div>
+              ) : (
+                <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+                  <table className="data-table" style={{ margin: 0 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ width: 40, textAlign: 'center' }}>No</th>
+                        <th>Nama Siswa</th>
+                        <th>NISN</th>
+                        <th style={{ width: 140, textAlign: 'center' }}>Skor Nilai (0-100)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {modalSiswaList.map((s, idx) => (
+                        <tr key={s.id}>
+                          <td style={{ textAlign: 'center', fontSize: '0.8125rem' }}>{idx + 1}</td>
+                          <td style={{ fontWeight: 600, fontSize: '0.875rem' }}>{s.nama}</td>
+                          <td style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>{s.nisn || '-'}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              step="any"
+                              className="input"
+                              placeholder="0 - 100"
+                              style={{ width: 90, textAlign: 'center', padding: '4px 6px', margin: '0 auto' }}
+                              value={siswaNilaiMap[s.id] ?? ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setSiswaNilaiMap((prev) => ({
+                                  ...prev,
+                                  [s.id]: val === '' ? '' : Number(val),
+                                }));
+                              }}
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={() => setShowTambahNilaiModal(false)}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={saveBulkNilaiMutation.isPending || modalSiswaList.length === 0}
+                onClick={() => saveBulkNilaiMutation.mutate()}
+              >
+                {saveBulkNilaiMutation.isPending ? 'Menyimpan Nilai…' : 'Simpan Semua Nilai'}
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
     </div>
